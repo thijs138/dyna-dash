@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>raamdecoratie.com — Sales Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--or:#F59901;--dk:#2D2D2D;--lt:#F9CD92;--pu:#9c27b0;--bl:#1565c0;--gr:#27ae60;--rd:#e74c3c;--bg:#F9F7F4;--wh:#fff;--bd:#eee;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"DM Sans",Arial,sans-serif;background:var(--bg);color:var(--dk);font-size:13px}
+.hdr{background:var(--dk);padding:0 24px;display:flex;align-items:center;justify-content:space-between;min-height:56px;gap:10px;flex-wrap:wrap}
+.brand{font-family:"DM Mono",monospace;font-size:15px;font-weight:500;color:var(--or)}
+.bdg{padding:3px 11px;border-radius:20px;font-size:11px;font-weight:700}
+.bdg-or{background:var(--or);color:var(--dk)}
+.sw{display:flex;align-items:center;gap:6px;font-size:11px;color:#aaa}
+.sd{width:8px;height:8px;border-radius:50%;background:#555;transition:background .3s}
+.sd.on{background:var(--gr)}
+#upload-screen{display:flex;flex-direction:column;align-items:center;padding:40px 24px;gap:20px;min-height:calc(100vh - 56px)}
+.uh2{font-size:22px;font-weight:700;text-align:center}
+.up{font-size:13px;color:#888;text-align:center;max-width:520px;line-height:1.7}
+.ugrid{display:grid;grid-template-columns:1fr 1fr;gap:18px;width:100%;max-width:720px}
+.uc{background:var(--wh);border:2px dashed var(--bd);border-radius:14px;padding:26px 20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.uc:hover,.uc.drag{border-color:var(--or);background:#fffdf5}
+.uc.done{border-color:var(--gr);border-style:solid;background:#f0fdf4}
+.uc input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.uco{font-size:32px;display:block;margin-bottom:10px}
+.uct{font-size:13px;font-weight:700;margin-bottom:6px}
+.ucs{font-size:11px;color:#888;line-height:1.6}
+.ucok{font-size:12px;color:var(--gr);font-weight:700;margin-top:8px;display:none}
+.steps{background:var(--wh);border:1px solid var(--bd);border-radius:12px;padding:18px 22px;width:100%;max-width:720px}
+.steps h3{font-size:13px;font-weight:700;margin-bottom:12px}
+.step{display:flex;gap:12px;align-items:flex-start;margin-bottom:9px;font-size:12px;color:#555;line-height:1.5}
+.stn{background:var(--or);color:var(--dk);border-radius:50%;width:22px;height:22px;min-width:22px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px}
+.bgo{background:var(--or);color:var(--dk);border:none;padding:13px 38px;border-radius:30px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s}
+.bgo:hover{background:#e08800;transform:translateY(-1px)}
+.bgo:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.upbar{width:100%;max-width:420px;height:6px;background:var(--bd);border-radius:10px;overflow:hidden;display:none}
+.upfill{height:100%;background:var(--or);border-radius:10px;width:0;transition:width .3s}
+.uperr{color:var(--rd);font-size:12px;background:#fdf0f0;border:1px solid #fbb;border-radius:8px;padding:10px 14px;max-width:720px;text-align:center;display:none}
+.unote{font-size:11px;color:#bbb;text-align:center;max-width:520px;line-height:1.8}
+#dashboard{display:none}
+.tabs{background:var(--wh);border-bottom:1.5px solid var(--bd);display:flex;overflow-x:auto;padding:0 16px}
+.tab{padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;border-bottom:2.5px solid transparent;color:#999;white-space:nowrap;font-family:inherit;transition:color .15s}
+.tab.active{color:var(--or);border-bottom-color:var(--or)}
+.tab.tg{color:var(--gr)}.tab.tg.active{color:var(--gr);border-bottom-color:var(--gr)}
+.tab.tb{color:var(--bl)}.tab.tb.active{color:var(--bl);border-bottom-color:var(--bl)}
+.tab.tu{background:var(--or);color:var(--dk);border-radius:20px;margin:6px 4px;padding:5px 14px;font-weight:700;border-bottom:none}
+.tab:hover:not(.tu){color:var(--dk)}
+.page{display:none;padding:20px 24px;max-width:1300px}.page.active{display:block}
+.sec{font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#bbb;margin:20px 0 11px;display:flex;align-items:center;gap:8px}
+.sec::before{content:"";display:block;width:3px;height:13px;background:var(--or);border-radius:2px}
+.sec.sbl::before{background:var(--bl)}.sec.spu::before{background:var(--pu)}.sec.sgr::before{background:var(--gr)}
+.kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:11px;margin-bottom:20px}
+.kpi{background:var(--wh);border-radius:11px;padding:14px 16px;border:1px solid var(--bd);position:relative;overflow:hidden}
+.kpi::after{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--bd)}
+.kpi.ka::after{background:var(--or)}.kpi.kg2::after{background:var(--gr)}
+.kpi.kb::after{background:var(--bl)}.kpi.kp::after{background:var(--pu)}.kpi.kr::after{background:var(--rd)}
+.klbl{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kval{font-size:22px;font-weight:700;color:var(--dk);line-height:1.2}
+.ksub{font-size:10px;color:#bbb;margin-top:3px}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:16px}
+.cc{background:var(--wh);border-radius:11px;padding:16px;border:1px solid var(--bd)}
+.cc.full{grid-column:1/-1}
+.cct{font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px}
+.leg{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:8px;font-size:11px;color:#999}
+.leg span{display:flex;align-items:center;gap:4px}
+.dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:var(--dk);color:#fff;padding:7px 9px;text-align:left;font-size:11px;font-weight:500}
+thead th.hb{background:var(--bl)}thead th.hp{background:var(--pu)}thead th.hg{background:var(--gr)}
+tbody tr:nth-child(even){background:#fafafa}
+tbody tr:hover{background:#fff8ec}
+tbody td{padding:6px 9px;border-bottom:1px solid #f2f2f2}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.pg{background:#e8f5e9;color:#1b5e20}.po{background:#fff3e0;color:#e65100}
+.pr{background:#fce4ec;color:#ad1457}.pd{background:var(--dk);color:var(--or)}
+.tr-tot td{border-top:2px solid var(--dk);background:#f4f4f4!important;font-weight:700}
+.tr-avg td{border-top:2px dashed var(--or);background:#fff8ec!important;font-weight:700}
+.tr-sub td{background:#fafafa!important;font-weight:600;border-top:1px dashed var(--bd)}
+.scr{overflow-x:auto;margin-bottom:14px}
+.ibox{border-radius:0 9px 9px 0;padding:11px 15px;margin-bottom:10px;border-left:3px solid var(--or);background:#fff8ec}
+.ibox.ibl{border-left-color:var(--bl);background:#e8f0fe}
+.ibox.iwarn{border-left-color:var(--rd);background:#fdf0f0}
+.ibox.igood{border-left-color:var(--gr);background:#f0fdf4}
+.ibox .it{font-weight:700;font-size:12px;margin-bottom:3px}
+.ibox p{font-size:12px;color:#555;line-height:1.55}
+.mbbar{display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap}
+.mb{padding:5px 14px;border:1.5px solid var(--bd);border-radius:20px;font-size:12px;cursor:pointer;background:var(--wh);color:#555;font-weight:600;font-family:inherit}
+.mb.active{background:var(--dk);color:var(--or);border-color:var(--dk)}
+.ncb{background:#e3f2fd;border:1.5px solid var(--bl);border-radius:11px;padding:14px 18px;margin-bottom:20px;display:flex;align-items:flex-start;gap:12px}
+.ncb .ico{font-size:26px;line-height:1}
+.ncb .txt{font-size:12px;color:var(--bl)}
+.ncb strong{font-size:17px;display:block;color:#0d47a1;margin-bottom:3px}
+.dg{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;margin-bottom:16px}
+.db{background:var(--wh);border:1.5px solid var(--bd);border-radius:10px;padding:12px 14px;cursor:pointer;text-align:center;font-family:inherit;font-size:12px;font-weight:600;color:var(--dk);transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:6px}
+.db:hover{border-color:var(--or);background:#fffdf5;transform:translateY(-1px)}
+.dbm{background:var(--or);color:var(--dk);border:none;padding:10px 22px;border-radius:24px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;margin-right:8px;margin-bottom:8px}
+.dbm:hover{background:#e08800}
+@media(max-width:680px){.r2{grid-template-columns:1fr}.ugrid{grid-template-columns:1fr}.page{padding:12px}}
+</style>
+</head>
+<body>
+<div class="hdr">
+  <div class="brand">raamdecoratie.com</div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div class="sw"><div class="sd" id="sd"></div><span id="slbl">Geen data geladen</span></div>
+    <span class="bdg bdg-or" id="hdrP" style="display:none"></span>
+  </div>
+</div>
+<div id="upload-screen">
+  <div class="uh2">&#128202; Sales Dashboard</div>
+  <div class="up">Upload je bellijst en provincie-bestand. Nieuwe maanden (Mei, Juni etc.) worden automatisch verwerkt.</div>
+  <div class="steps">
+    <h3>Hoe werkt het?</h3>
+    <div class="step"><div class="stn">1</div><div>Upload je <strong>bellijst XLSX</strong> &mdash; &#233;&#233;n bestand met tabbladen per maand (Januari 2026, Februari 2026 etc.) of meerdere bestanden</div></div>
+    <div class="step"><div class="stn">2</div><div>Upload het <strong>provincie-bestand XLSX</strong> &mdash; kolom A = ordernummer, kolom B = provincie, per maand-tabblad (jan, feb, mrt, apr etc.)</div></div>
+    <div class="step"><div class="stn">3</div><div>Klik <strong>Verwerk</strong> &mdash; alle maanden, grafieken en tabellen worden automatisch geladen</div></div>
+    <div class="step"><div class="stn">4</div><div>Download de <strong>9 persoonlijke adviseurs-dashboards</strong> via de Downloads-tab</div></div>
+  </div>
+  <div class="ugrid">
+    <div class="uc" id="cb" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dropF(event,'bell')">
+      <span class="uco">&#128203;</span>
+      <div class="uct">Bellijst (XLSX)</div>
+      <div class="ucs">&#233;&#233;n bestand met tabbladen per maand<br><em>of</em> meerdere bestanden per maand<br><br>Kolommen: <strong>Adviseur &bull; Waarde &bull; Besteld<br>Datum bellen &bull; Bel of mail &bull; Reden</strong></div>
+      <div class="ucok" id="bok">&#10003; <span id="bn"></span></div>
+      <input type="file" accept=".xlsx,.xls" multiple onchange="assignF(Array.from(this.files),'bell')">
+    </div>
+    <div class="uc" id="cp" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dropF(event,'prov')">
+      <span class="uco">&#128506;</span>
+      <div class="uct">Provincie-bestand <em style="font-weight:400;color:#aaa">(optioneel)</em></div>
+      <div class="ucs">Kolom A = ordernummer<br>Kolom B = provincie<br><br>Tabbladen: <strong>jan &bull; feb &bull; mrt &bull; apr &bull; mei</strong> etc.</div>
+      <div class="ucok" id="pok">&#10003; <span id="pn"></span></div>
+      <input type="file" accept=".xlsx,.xls" onchange="assignF(Array.from(this.files),'prov')">
+    </div>
+  </div>
+  <div class="upbar" id="upbar"><div class="upfill" id="upfill"></div></div>
+  <div class="uperr" id="uperr"></div>
+  <button class="bgo" id="bgo" onclick="processUpload()" disabled>Verwerk bestanden &#8594;</button>
+  <div class="unote">Kevin wordt automatisch uitgefilterd &bull; Belgische provincies worden samengevoegd als &ldquo;Belgi&#235;&rdquo;</div>
+</div>
+<div id="dashboard">
+  <div class="tabs" id="tabBar"></div>
+  <div id="pages"></div>
+</div>
+<script>
+// ── globals ──────────────────────────────────────────────────────────────
+var O='#F59901',DK='#2D2D2D',L='#F9CD92',P='#ce93d8',GR='#27ae60',BL='#1565c0',RD='#e74c3c',PU='#9c27b0';
+var MORD=['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'];
+var MALI={'januari 2026':'Januari','februari 2026':'Februari','maart 2026':'Maart','april 2026':'April','mei 2026':'Mei','juni 2026':'Juni','juli 2026':'Juli','augustus 2026':'Augustus','september 2026':'September','oktober 2026':'Oktober','november 2026':'November','december 2026':'December','januari':'Januari','februari':'Februari','maart':'Maart','april':'April','mei':'Mei','juni':'Juni','juli':'Juli','augustus':'Augustus','september':'September','oktober':'Oktober','november':'November','december':'December'};
+var PSHT={'jan':'Januari','feb':'Februari','mrt':'Maart','apr':'April','mei':'Mei','jun':'Juni','jul':'Juli','aug':'Augustus','sep':'September','okt':'Oktober','nov':'November','dec':'December'};
+var BELG=['vlaanderen','brussel','provincie antwerpen','prov. antwerpen','vlaams gewest','vlaams-brabant','west-vlaanderen','oost-vlaanderen'];
+var S={bellFiles:null,provFile:null,data:null,prevRows:null,charts:{}};
+// ── percentage kleurenschaal ─────────────────────────────────────────────
+// 0-60% donkerrood · 61-70% rood · 71-75% oranje · 76-80% lichtgroen · 81-85% groen · 85%+ donkergroen
+var PSCALE=[
+  {max:60,bg:'#f5cccc',fg:'#7a1010',hex:'#8b0000'},
+  {max:70,bg:'#fbdcd7',fg:'#c0392b',hex:'#e74c3c'},
+  {max:75,bg:'#ffe6bf',fg:'#a85d00',hex:'#F59901'},
+  {max:80,bg:'#e3f2d7',fg:'#5a8f3c',hex:'#8bc34a'},
+  {max:85,bg:'#d4f0dd',fg:'#1e8449',hex:'#27ae60'},
+  {max:9999,bg:'#c3e6c9',fg:'#1b5e20',hex:'#1b5e20'}
+];
+function pTier(v){v=Number(v)||0;for(var i=0;i<PSCALE.length;i++){if(v<=PSCALE[i].max)return PSCALE[i];}return PSCALE[PSCALE.length-1];}
+function pHex(v){return pTier(v).hex;}
+// ── upload ───────────────────────────────────────────────────────────────
+function dropF(e,t){e.preventDefault();var f=Array.from(e.dataTransfer.files).filter(function(f){return /\.xlsx?$/i.test(f.name);});if(f.length)assignF(f,t);}
+function assignF(files,type){
+  if(type==='bell'){S.bellFiles=files;document.getElementById('bok').style.display='block';document.getElementById('bn').textContent=files.length===1?files[0].name:files.length+' bestanden';document.getElementById('cb').classList.add('done');}
+  else{S.provFile=files[0];document.getElementById('pok').style.display='block';document.getElementById('pn').textContent=files[0].name;document.getElementById('cp').classList.add('done');}
+  document.getElementById('bgo').disabled=!S.bellFiles;
+}
+function setProg(p){document.getElementById('upbar').style.display='block';document.getElementById('upfill').style.width=p+'%';}
+function showErr(m){var e=document.getElementById('uperr');e.textContent=m;e.style.display='block';}
+function processUpload(){
+  document.getElementById('bgo').disabled=true;
+  document.getElementById('uperr').style.display='none';
+  setProg(5);
+  S.prevRows=S.data?S.data.rows.slice():(function(){try{var s=localStorage.getItem('rd_rows');return s?JSON.parse(s):null;}catch(e){return null;}})();
+  Promise.all(S.bellFiles.map(readWB))
+    .then(function(wbs){setProg(35);return parseBell(wbs);})
+    .then(function(rows){
+      setProg(55);
+      if(S.provFile)return readWB(S.provFile).then(function(wb){attachProv(rows,wb);return rows;});
+      return rows;
+    })
+    .then(function(rows){
+      setProg(80);
+      try{localStorage.setItem('rd_rows',JSON.stringify(rows.slice(0,3000)));}catch(e){}
+      S.data=buildDataset(rows,S.prevRows);
+      setProg(100);
+      setTimeout(renderDashboard,300);
+    })
+    .catch(function(err){showErr('Fout: '+err.message);document.getElementById('bgo').disabled=false;});
+}
+function readWB(file){
+  return new Promise(function(res,rej){
+    var r=new FileReader();
+    r.onload=function(e){try{res(XLSX.read(e.target.result,{type:'binary',cellDates:true}));}catch(err){rej(err);}};
+    r.onerror=function(){rej(new Error('Kan '+file.name+' niet lezen'));};
+    r.readAsBinaryString(file);
+  });
+}
+// ── parse ────────────────────────────────────────────────────────────────
+function parseBell(wbs){
+  var rows=[];
+  wbs.forEach(function(wb){
+    wb.SheetNames.forEach(function(sn){
+      var maand=MALI[sn.toLowerCase().trim()];
+      if(!maand)return;
+      var data=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:null,raw:false});
+      if(!data.length)return;
+      var cm=detectCols(Object.keys(data[0]));
+      data.forEach(function(r){
+        var adv=cStr(r[cm.adv]);
+        if(!adv)return;
+        adv=adv.charAt(0).toUpperCase()+adv.slice(1).toLowerCase();
+        if(adv.toLowerCase()==='kevin')return;
+        rows.push({ordr:cStr(r[cm.ordr]),klant:cStr(r[cm.klant]),adv:adv,waarde:cNum(r[cm.waarde]),besteld:cStr(r[cm.besteld]),dtM:cStr(r[cm.dtM]),dtB:cStr(r[cm.dtB]),bom:cStr(r[cm.bom]),reden:cStr(r[cm.reden]),maand:maand,prov:null,isB:!!cStr(r[cm.besteld]),hasC:!!cStr(r[cm.dtB])});
+      });
+    });
+  });
+  if(!rows.length)throw new Error('Geen rijen gevonden. Controleer tabblad-namen (bijv. "Januari 2026")');
+  return rows;
+}
+function detectCols(keys){
+  var m={};
+  var p={ordr:/ordernummer|meetservice/i,klant:/klant|naam/i,adv:/adviseur/i,waarde:/waarde|prijs/i,besteld:/besteld/i,dtM:/datum.*met|meetdatum/i,dtB:/datum.*bell|bel.*datum/i,bom:/bel.*mail|mail.*bel/i,reden:/reden/i};
+  keys.forEach(function(k){Object.entries(p).forEach(function(e){if(!m[e[0]]&&e[1].test(k))m[e[0]]=k;});});
+  if(!m.ordr&&keys[2])m.ordr=keys[2];
+  if(!m.adv&&keys[4])m.adv=keys[4];
+  if(!m.waarde&&keys[5])m.waarde=keys[5];
+  if(!m.besteld&&keys[6])m.besteld=keys[6];
+  if(!m.dtB&&keys[7])m.dtB=keys[7];
+  if(!m.bom&&keys[9])m.bom=keys[9];
+  if(!m.reden&&keys[10])m.reden=keys[10];
+  return m;
+}
+function cStr(v){return(v===null||v===undefined||String(v).trim()==='')?null:String(v).trim();}
+function cNum(v){var n=parseFloat(String(v||0).replace(/[€,\s]/g,''));return isNaN(n)?0:n;}
+function attachProv(rows,wb){
+  var pm={};
+  wb.SheetNames.forEach(function(sn){
+    var data=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:false});
+    data.forEach(function(r){
+      var ordr=r[0]?String(r[0]).trim().split('.')[0]:null;
+      var pv=r[1]?String(r[1]).trim():null;
+      if(!ordr||!pv)return;
+      if(!pm[ordr])pm[ordr]=BELG.includes(pv.toLowerCase())?'België':pv;
+    });
+  });
+  rows.forEach(function(r){if(r.ordr&&pm[r.ordr])r.prov=pm[r.ordr];});
+}
+// ── dataset ──────────────────────────────────────────────────────────────
+function buildDataset(rows,prevRows){
+  var months=[...new Set(rows.map(function(r){return r.maand;}))].sort(function(a,b){return MORD.indexOf(a)-MORD.indexOf(b);});
+  var adviseurs=[...new Set(rows.map(function(r){return r.adv;}))].filter(Boolean).sort();
+  function stats(sub){
+    var n=sub.length,b=sub.filter(function(r){return r.isB;}).length;
+    var wi=sub.reduce(function(s,r){return s+r.waarde;},0);
+    var wb2=sub.filter(function(r){return r.isB;}).reduce(function(s,r){return s+r.waarde;},0);
+    var nr=sub.filter(function(r){return r.hasC;}).length;
+    var nb=sub.filter(function(r){return r.hasC&&r.isB;}).length;
+    var red={},bom={};
+    sub.filter(function(r){return !r.isB&&r.reden;}).forEach(function(r){red[r.reden]=(red[r.reden]||0)+1;});
+    sub.filter(function(r){return r.bom;}).forEach(function(r){bom[r.bom]=(bom[r.bom]||0)+1;});
+    var openK=sub.filter(function(r){return !r.hasC&&!r.isB;});
+    var days=sub.filter(function(r){return r.hasC&&r.dtM&&r.dtB;}).map(function(r){var d=Math.round((new Date(r.dtB)-new Date(r.dtM))/86400000);return d>=0&&d<365?d:null;}).filter(function(d){return d!==null;});
+    var gemD=days.length?Math.round(days.reduce(function(a,b){return a+b;},0)/days.length*10)/10:0;
+    var snel=sub.filter(function(r){return r.hasC&&r.dtM&&r.dtB&&Math.round((new Date(r.dtB)-new Date(r.dtM))/86400000)<=14;});
+    var laat=sub.filter(function(r){return r.hasC&&r.dtM&&r.dtB&&Math.round((new Date(r.dtB)-new Date(r.dtM))/86400000)>14;});
+    return{n:n,b:b,niet:n-b,conv:n>0?r1(b/n*100):0,wi:Math.round(wi),wb:Math.round(wb2),cwi:wi>0?r1(wb2/wi*100):0,nr:nr,nb:nb,nc:nr>0?r1(nb/nr*100):0,red:red,bom:bom,gemD:gemD,snelConv:snel.length?r1(snel.filter(function(r){return r.isB;}).length/snel.length*100):0,laatConv:laat.length?r1(laat.filter(function(r){return r.isB;}).length/laat.length*100):0,openK:openK.length,openW:Math.round(openK.reduce(function(s,r){return s+r.waarde;},0))};
+  }
+  var MD={};
+  months.forEach(function(m){MD[m]=stats(rows.filter(function(r){return r.maand===m;}));});
+  var AD={};
+  adviseurs.forEach(function(a){
+    AD[a]={};
+    months.forEach(function(m){
+      var sub=rows.filter(function(r){return r.adv===a&&r.maand===m;});
+      if(!sub.length)return;
+      var s=stats(sub);
+      var pv={};
+      sub.filter(function(r){return r.prov;}).forEach(function(r){if(!pv[r.prov])pv[r.prov]={n:0,b:0};pv[r.prov].n++;if(r.isB)pv[r.prov].b++;});
+      Object.keys(pv).forEach(function(p){var v=pv[p];v.c=v.n>0?r1(v.b/v.n*100):0;});
+      var mail=sub.filter(function(r){return r.bom==='Mail';});
+      var bel=sub.filter(function(r){return r.bom==='Bellen';});
+      s.prov=pv;s.mail=mail.length;s.bellen=bel.length;
+      s.mailConv=mail.length?r1(mail.filter(function(r){return r.isB;}).length/mail.length*100):0;
+      s.belConv=bel.length?r1(bel.filter(function(r){return r.isB;}).length/bel.length*100):0;
+      s.convNa=sub.filter(function(r){return r.hasC&&r.isB;}).length;
+      AD[a][m]=s;
+    });
+  });
+  var PV={};
+  months.forEach(function(m){
+    PV[m]={};
+    rows.filter(function(r){return r.maand===m&&r.prov;}).forEach(function(r){if(!PV[m][r.prov])PV[m][r.prov]={n:0,b:0};PV[m][r.prov].n++;if(r.isB)PV[m][r.prov].b++;});
+    Object.keys(PV[m]).forEach(function(p){var v=PV[m][p];v.c=v.n>0?r1(v.b/v.n*100):0;});
+  });
+  var pvTot={};
+  months.forEach(function(m){Object.entries(PV[m]).forEach(function(e){var p=e[0],v=e[1];if(!pvTot[p])pvTot[p]={n:0,b:0};pvTot[p].n+=v.n;pvTot[p].b+=v.b;});});
+  Object.keys(pvTot).forEach(function(p){var v=pvTot[p];v.c=v.n>0?r1(v.b/v.n*100):0;});
+  PV.Totaal=pvTot;
+  var NC=[];
+  if(prevRows){
+    var pb={};
+    prevRows.filter(function(r){return r.isB;}).forEach(function(r){pb[r.ordr+'_'+r.maand]=true;});
+    rows.filter(function(r){return r.isB;}).forEach(function(r){if(!pb[r.ordr+'_'+r.maand])NC.push({naam:r.klant||'—',maand:r.maand,adv:r.adv,waarde:r.waarde,contact:r.bom||'',reden:r.reden||''});});
+  }
+  return{rows:rows,months:months,adviseurs:adviseurs,MD:MD,AD:AD,PV:PV,NC:NC};
+}
+function r1(v){return Math.round(v*10)/10;}
+// ── render ────────────────────────────────────────────────────────────────
+function renderDashboard(){
+  var D=S.data;
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  document.getElementById('sd').classList.add('on');
+  document.getElementById('slbl').textContent=D.months.join(' + ')+' geladen';
+  var hp=document.getElementById('hdrP');hp.style.display='';hp.textContent=D.months[0]+' – '+D.months[D.months.length-1]+' 2026';
+  Object.values(S.charts).forEach(function(c){try{c.destroy();}catch(e){}});
+  S.charts={};
+  buildTabs(D);
+  buildAllPages(D);
+  // init always-visible charts after a small delay
+  setTimeout(function(){initMainCharts(D);},100);
+}
+// ── tabs ──────────────────────────────────────────────────────────────────
+function buildTabs(D){
+  var bar=document.getElementById('tabBar');
+  var defs=[
+    {id:'ov',lbl:'&#128202; Overzicht',cls:''},
+    {id:'adv',lbl:'&#128100; Adviseurs',cls:''},
+    {id:'prov',lbl:'&#128506;&#65039; Provincie',cls:''},
+    {id:'regio',lbl:'&#128205; Adv. per regio',cls:''},
+    {id:'nab',lbl:'&#128222; Nabellen',cls:''},
+    {id:'nab2',lbl:'&#127919; Nabellen detail',cls:'tg'}
+  ];
+  D.months.forEach(function(m){defs.push({id:'m_'+m,lbl:'&#128995; '+m,cls:''}); });
+  if(D.NC.length)defs.push({id:'nc',lbl:'&#128338; Nieuwe best.',cls:'tb'});
+  defs.push({id:'dl',lbl:'&#8659;&#65039; Downloads',cls:''});
+  defs.push({id:'up',lbl:'&#8679; Nieuw bestand',cls:'tu'});
+  bar.innerHTML='';
+  defs.forEach(function(t,i){
+    var btn=document.createElement('button');
+    btn.className='tab '+(t.cls)+(i===0?' active':'');
+    btn.innerHTML=t.lbl;
+    btn.setAttribute('data-id',t.id);
+    btn.onclick=function(){switchPage(t.id,btn);};
+    bar.appendChild(btn);
+  });
+}
+function switchPage(id,el){
+  if(id==='up'){
+    document.getElementById('upload-screen').style.display='flex';
+    document.getElementById('dashboard').style.display='none';
+    return;
+  }
+  document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+  document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active');});
+  var pg=document.getElementById('pg_'+id);
+  if(pg){pg.classList.add('active');}
+  if(el){el.classList.add('active');}
+  // init charts for this page after DOM is visible
+  setTimeout(function(){
+    if(!S.data)return;
+    var D=S.data;
+    if(id==='nab2'){initNab2Charts(D);return;}
+    if(id==='nc'){initNcCharts(D);return;}
+    // month page
+    D.months.forEach(function(m){
+      if(id==='m_'+m){initMonthCharts(D,m);}
+    });
+  },80);
+}
+// ── page builder ──────────────────────────────────────────────────────────
+function el(tag,cls,html){var e=document.createElement(tag);if(cls)e.className=cls;if(html)e.innerHTML=html;return e;}
+function addPage(id,content){
+  var d=document.createElement('div');
+  d.className='page';d.id='pg_'+id;
+  d.innerHTML=content;
+  document.getElementById('pages').appendChild(d);
+  if(id==='ov')d.classList.add('active');
+}
+function h(t,c){return '<span class="pill '+c+'">'+t+'%</span>';}
+function pc(c){var t=pTier(c);return '<span class="pill" style="background:'+t.bg+';color:'+t.fg+'">'+c+'%</span>';}
+function dh(v,g){var d=r1(v-g),col=d>=0?GR:RD,s=d>=0?'+':'';return '<span style="color:'+col+';font-size:11px;font-weight:700">'+s+d+'%</span>';}
+function ef(n){return '€'+Number(Math.round(n)).toLocaleString('nl-NL');}
+function fN(n){return Number(n).toLocaleString('nl-NL');}
+function gc(c){return pHex(c);}
+function buildAllPages(D){
+  document.getElementById('pages').innerHTML='';
+  var M=D.months,AN=D.adviseurs,MD=D.MD,AD=D.AD,PV=D.PV,NC=D.NC;
+  var MCOLS=[O,DK,L,P,GR,BL,PU,'#ff9800','#009688','#795548','#607d8b','#e91e63'];
+  var tN=M.reduce(function(s,m){return s+MD[m].n;},0);
+  var tB=M.reduce(function(s,m){return s+MD[m].b;},0);
+  var tWi=M.reduce(function(s,m){return s+MD[m].wi;},0);
+  var tWb=M.reduce(function(s,m){return s+MD[m].wb;},0);
+  var tC=tN>0?r1(tB/tN*100):0;
+  var tCw=tWi>0?r1(tWb/tWi*100):0;
+  var q1M=M.slice(0,Math.min(3,M.length));
+  var q1n=q1M.reduce(function(s,m){return s+MD[m].n;},0);
+  var q1b=q1M.reduce(function(s,m){return s+MD[m].b;},0);
+  var q1c=q1n>0?r1(q1b/q1n*100):0;
+  var q1gem=q1M.length?r1(q1M.reduce(function(s,m){return s+MD[m].conv;},0)/q1M.length):0;
+  var lastM=M[M.length-1],lastD=MD[lastM];
+  // ── OVERZICHT ──────────────────────────────────────────────────────────
+  var sumR=M.map(function(m){var d=MD[m];return '<tr><td>'+m+'</td><td>'+d.n+'</td><td>'+d.b+'</td><td>'+d.niet+'</td><td>'+pc(d.conv)+'</td><td>'+ef(d.wi)+'</td><td>'+ef(d.wb)+'</td><td>'+d.cwi+'%</td></tr>';}).join('');
+  addPage('ov',
+    '<div class="sec">Totaal '+M[0]+' t/m '+lastM+'</div>'+
+    '<div class="kg">'+
+    kpi('ka',fN(tN),'Totaal ingemeten',M.join(' + '))+
+    kpi('ka',fN(tB),'Totaal besteld','van '+fN(tN)+' metingen')+
+    kpi('kg2',tC+'%','Conversie totaal','alle maanden')+
+    kpi('',ef(tWi),'Waarde ingemeten','','font-size:18px')+
+    kpi('',ef(tWb),'Waarde besteld','','font-size:18px')+
+    kpi(lastD.conv<q1gem?'kr':'kg2','<span style="color:'+pHex(lastD.conv)+'">'+lastD.conv+'%</span>',lastM+' conversie',dh(lastD.conv,q1gem)+' vs Q1 gem')+
+    '</div>'+
+    (lastD.conv<q1gem?'<div class="ibox iwarn"><div class="it">&#9888;&#65039; '+lastM+' conversie '+lastD.conv+'% &mdash; '+r1(q1gem-lastD.conv)+' ppt onder Q1 gemiddelde ('+q1gem+'%)</div><p>Gerichte nabellen-opvolging gewenst.</p></div>':'')+
+    '<div class="r2">'+
+    '<div class="cc"><div class="cct">Conversie% per maand</div><div style="height:230px"><canvas id="cConvBar"></canvas></div></div>'+
+    '<div class="cc"><div class="cct">Waarde ingemeten vs besteld (&#8364;)</div><div class="leg"><span><span class="dot" style="background:#F9CD92"></span>Ingemeten</span><span><span class="dot" style="background:#F59901"></span>Besteld</span></div><div style="height:230px"><canvas id="cWaarde"></canvas></div></div>'+
+    '</div>'+
+    '<div class="sec">Maandoverzicht</div>'+
+    '<div class="scr"><table><thead><tr><th>Maand</th><th>Ingemeten</th><th>Besteld</th><th>Niet</th><th>Conv%</th><th>Waarde ing.</th><th>Waarde best.</th><th>Conv%&#8364;</th></tr></thead><tbody>'+sumR+
+    '<tr class="tr-sub"><td>Q1</td><td>'+q1n+'</td><td>'+q1b+'</td><td>'+(q1n-q1b)+'</td><td>'+pc(q1c)+'</td><td>'+ef(q1M.reduce(function(s,m){return s+MD[m].wi;},0))+'</td><td>'+ef(q1M.reduce(function(s,m){return s+MD[m].wb;},0))+'</td><td></td></tr>'+
+    '<tr class="tr-tot"><td>Totaal</td><td>'+tN+'</td><td>'+tB+'</td><td>'+(tN-tB)+'</td><td>'+pc(tC)+'</td><td>'+ef(tWi)+'</td><td>'+ef(tWb)+'</td><td>'+tCw+'%</td></tr>'+
+    '</tbody></table></div>'
+  );
+  // ── ADVISEURS ──────────────────────────────────────────────────────────
+  var advHdr=M.map(function(m){var s=m.slice(0,3);return '<th>'+s+' ing.</th><th>'+s+' b.</th><th>'+s+'%</th>';}).join('');
+  var advR=AN.map(function(a){
+    var cells=M.map(function(m){var d=AD[a][m];if(!d)return '<td>—</td><td>—</td><td style="color:#ccc">—</td>';return '<td>'+d.n+'</td><td>'+d.b+'</td><td>'+pc(d.conv)+'</td>';}).join('');
+    var ti=M.reduce(function(s,m){return s+(AD[a][m]?AD[a][m].n:0);},0);
+    var tb=M.reduce(function(s,m){return s+(AD[a][m]?AD[a][m].b:0);},0);
+    var tc=ti>0?r1(tb/ti*100):0;
+    return '<tr><td><strong>'+a+'</strong></td>'+cells+'<td>'+tb+'/'+ti+'</td><td>'+pc(tc)+'</td></tr>';
+  }).join('');
+  var avgC=M.map(function(m){return '<td>'+MD[m].n+'</td><td>'+MD[m].b+'</td><td><span class="pill pd">'+MD[m].conv+'%</span></td>';}).join('');
+  advR+='<tr class="tr-avg"><td><strong>Team gem.</strong></td>'+avgC+'<td>'+tB+'/'+tN+'</td><td><span class="pill pd">'+tC+'%</span></td></tr>';
+  var gemR=M.map(function(m){
+    var sc=AN.map(function(a){return[a,AD[a][m]?AD[a][m].conv:0];}).filter(function(x){return AD[x[0]][m];});
+    if(!sc.length)return'';
+    var best=sc.reduce(function(a,b){return a[1]>b[1]?a:b;});
+    var worst=sc.reduce(function(a,b){return a[1]<b[1]?a:b;});
+    return '<tr><td>'+m+'</td><td>'+pc(MD[m].conv)+'</td><td>'+best[0]+' '+best[1]+'%</td><td>'+worst[0]+' '+worst[1]+'%</td><td>'+r1(best[1]-worst[1])+' ppt</td></tr>';
+  }).join('');
+  addPage('adv',
+    '<div class="sec">Conversie per adviseur</div>'+
+    '<div class="r2"><div class="cc full"><div class="cct">Conversie% per adviseur per maand</div><div style="height:350px"><canvas id="cAdvConv"></canvas></div></div></div>'+
+    '<div class="sec">Detailtabel</div>'+
+    '<div class="scr"><table><thead><tr><th>Adviseur</th>'+advHdr+'<th class="hb">Totaal</th><th class="hb">%</th></tr></thead><tbody>'+advR+'</tbody></table></div>'+
+    '<div class="sec">Gemiddelden per maand</div>'+
+    '<div class="scr"><table><thead><tr><th>Maand</th><th>Team gem.</th><th>Hoogst</th><th>Laagst</th><th>Spreiding</th></tr></thead><tbody>'+gemR+'</tbody></table></div>'+
+    '<div class="sec" style="margin-top:16px">Inmeet waarde per adviseur (&#8364;)</div>'+
+    '<div class="r2"><div class="cc full"><div class="cct">Ingemeten waarde per adviseur per maand</div><div style="height:300px"><canvas id="cAdvWaarde"></canvas></div></div></div>'
+  );
+  // ── PROVINCIE ──────────────────────────────────────────────────────────
+  var mbbtns=M.map(function(m){return '<button class="mb" onclick="selProv(\''+m+'\',this)">'+m+'</button>';}).join('')+'<button class="mb active" onclick="selProv(\'Totaal\',this)">Totaal</button>';
+  addPage('prov',
+    '<div class="sec">Provincie &mdash; selecteer periode</div>'+
+    '<div class="mbbar">'+mbbtns+'</div>'+
+    '<div class="r2"><div class="cc full"><div class="cct" id="ptitle">Conversie % &mdash; Totaal</div><div id="pwrap" style="position:relative"><canvas id="cProv"></canvas></div></div></div>'+
+    '<div class="r2"><div class="cc full"><div class="cct" id="pvtitle">Volume &mdash; Totaal</div><div class="leg"><span><span class="dot" style="background:#F9CD92"></span>Ingemeten</span><span><span class="dot" style="background:#F59901"></span>Besteld</span></div><div style="height:380px"><canvas id="cProvVol"></canvas></div></div></div>'+
+    '<div class="scr"><table><thead><tr><th>Provincie</th><th>Ingemeten</th><th>Besteld</th><th>Niet besteld</th><th>Conversie</th></tr></thead><tbody id="provtb"></tbody></table></div>'
+  );
+  // ── REGIO HEATMAP ──────────────────────────────────────────────────────
+  var allP=Object.keys(PV.Totaal||{}).sort(function(a,b){return PV.Totaal[b].n-PV.Totaal[a].n;});
+  var hHdr='<tr><th>Provincie</th><th>Totaal</th>'+AN.map(function(a){return '<th>'+a+'</th>';}).join('')+'</tr>';
+  var hRows=allP.filter(function(p){return PV.Totaal[p].n>=5;}).map(function(p){
+    var qt=PV.Totaal[p];
+    var cells=AN.map(function(a){
+      var ti=0,tb=0;M.forEach(function(m){var pm=AD[a][m]&&AD[a][m].prov&&AD[a][m].prov[p]?AD[a][m].prov[p]:{n:0,b:0};ti+=pm.n;tb+=pm.b;});
+      if(ti<3)return '<td style="color:#ddd;text-align:center">—</td>';
+      var c=r1(tb/ti*100),hc=gc(c);
+      return '<td style="background:'+hc+'22;text-align:center"><strong style="color:'+hc+'">'+c+'%</strong><br><small>'+tb+'/'+ti+'</small></td>';
+    }).join('');
+    return '<tr><td><strong>'+p+'</strong></td><td>'+pc(qt.c)+'<br><small>'+qt.b+'/'+qt.n+'</small></td>'+cells+'</tr>';
+  }).join('');
+  addPage('regio',
+    '<div class="sec">Heatmap &mdash; adviseur per provincie (alle maanden)</div>'+
+    '<p style="font-size:11px;color:#999;margin-bottom:11px">Groen ≥85% · lichtgroen ≥75% · oranje ≥65% · rood &lt;65% · — = &lt;3 metingen</p>'+
+    '<div class="scr"><table><thead>'+hHdr+'</thead><tbody>'+hRows+'</tbody></table></div>'
+  );
+  // ── NABELLEN ──────────────────────────────────────────────────────────
+  var allRed={};
+  M.forEach(function(m){Object.entries(MD[m].red||{}).forEach(function(e){allRed[e[0]]=(allRed[e[0]]||0)+e[1];});});
+  var nabR=M.map(function(m){
+    var d=MD[m];
+    var mail=d.bom['Mail']||d.bom['mail']||0,bel=d.bom['Bellen']||d.bom['bellen']||0;
+    return '<tr><td>'+m+'</td><td>'+d.nr+'</td><td>'+d.nb+'</td><td>'+(d.nr-d.nb)+'</td><td>'+pc(d.nc)+'</td><td>'+mail+'</td><td>'+bel+'</td></tr>';
+  }).join('');
+  var rdnR=Object.entries(allRed).sort(function(a,b){return b[1]-a[1];}).map(function(e){
+    var r=e[0];var per=M.map(function(m){return '<td>'+(MD[m].red[r]||0)+'</td>';}).join('');
+    return '<tr><td>'+r+'</td>'+per+'<td><strong>'+e[1]+'</strong></td></tr>';
+  }).join('');
+  addPage('nab',
+    '<div class="sec">Nabellen &mdash; overzicht</div>'+
+    '<div class="kg">'+M.map(function(m){var d=MD[m];return kpi('ka',d.nc+'%',m+' conv.',d.nb+'/'+d.nr+' benaderd');}).join('')+'</div>'+
+    '<div class="r2">'+
+    '<div class="cc"><div class="cct">Nabellen conv% per maand</div><div style="height:230px"><canvas id="cNab"></canvas></div></div>'+
+    '<div class="cc"><div class="cct">Redenen geen bestelling</div><div style="height:230px"><canvas id="cReden"></canvas></div></div>'+
+    '</div>'+
+    '<div class="sec">Per maand</div>'+
+    '<div class="scr"><table><thead><tr><th>Maand</th><th>Benaderd</th><th>Besteld na</th><th>Niet</th><th>Conv%</th><th>Mail</th><th>Bellen</th></tr></thead><tbody>'+nabR+'</tbody></table></div>'+
+    '<div class="sec">Redenen per maand</div>'+
+    '<div class="scr"><table><thead><tr><th>Reden</th>'+M.map(function(m){return '<th>'+m+'</th>';}).join('')+'<th>Totaal</th></tr></thead><tbody>'+rdnR+'</tbody></table></div>'
+  );
+  // ── NABELLEN DETAIL ────────────────────────────────────────────────────
+  var totContact=M.reduce(function(s,m){return s+MD[m].nr;},0);
+  var totNb=M.reduce(function(s,m){return s+MD[m].nb;},0);
+  var totOpen=AN.reduce(function(s,a){return s+M.reduce(function(ss,m){return ss+(AD[a][m]?AD[a][m].openK:0);},0);},0);
+  var totOpenW=AN.reduce(function(s,a){return s+M.reduce(function(ss,m){return ss+(AD[a][m]?AD[a][m].openW:0);},0);},0);
+  var sCA=M.map(function(m){return MD[m].snelConv;}).filter(function(v){return v>0;});
+  var lCA=M.map(function(m){return MD[m].laatConv;}).filter(function(v){return v>0;});
+  var snelA=sCA.length?r1(sCA.reduce(function(a,b){return a+b;},0)/sCA.length):0;
+  var laatA=lCA.length?r1(lCA.reduce(function(a,b){return a+b;},0)/lCA.length):0;
+  var nabAdvR=AN.map(function(a){
+    var allD=M.map(function(m){return AD[a][m];}).filter(Boolean);
+    if(!allD.length)return'';
+    var tn2=allD.reduce(function(s,d){return s+d.n;},0),tb2=allD.reduce(function(s,d){return s+d.b;},0);
+    var tc2=allD.reduce(function(s,d){return s+d.nr;},0),tna=allD.reduce(function(s,d){return s+(d.convNa||0);},0);
+    var top2=allD.reduce(function(s,d){return s+d.openK;},0),topW=allD.reduce(function(s,d){return s+d.openW;},0);
+    var cnap=tc2>0?r1(tna/tc2*100):0;
+    var tr2=allD.reduce(function(acc,d){Object.entries(d.red||{}).forEach(function(e){acc[e[0]]=(acc[e[0]]||0)+e[1];});return acc;},{});
+    var tr3=Object.entries(tr2).sort(function(a,b){return b[1]-a[1];})[0];
+    var oc=top2>5?'style="background:#fff3e0;color:#e65100;font-weight:700"':'';
+    return '<tr><td><strong>'+a+'</strong></td><td>'+tn2+'</td><td>'+tb2+'</td><td>'+(tn2-tb2)+'</td><td>'+tc2+'</td><td>'+pc(cnap)+'</td><td '+oc+'>'+top2+'<br><small>'+ef(topW)+'</small></td><td style="font-size:11px;color:#666">'+(tr3?tr3[0]:'—')+'</td></tr>';
+  }).join('');
+  addPage('nab2',
+    '<div class="sec sgr">&#127919; Nabellen detail per adviseur</div>'+
+    '<div class="kg">'+
+    kpi('kg2',totContact.toString(),'Totaal benaderd','alle maanden')+
+    kpi('ka',totNb.toString(),'Besteld na contact',(totContact>0?r1(totNb/totContact*100):0)+'% conv')+
+    kpi('kr',totOpen.toString(),'Open kansen',ef(totOpenW)+' te halen')+
+    kpi('kb',snelA+'%','Snel ≤14 dgn','vs '+laatA+'% bij laat')+
+    '</div>'+
+    '<div class="r2"><div class="cc full"><div class="cct">Per adviseur &mdash; direct / na contact / geen resultaat / open kansen</div><div class="leg"><span><span class="dot" style="background:#27ae60"></span>Direct</span><span><span class="dot" style="background:#F59901"></span>Na contact</span><span><span class="dot" style="background:#ff9800"></span>Geen result.</span><span><span class="dot" style="background:#ef5350"></span>Open kansen</span></div><div style="height:310px"><canvas id="cNabAdv"></canvas></div></div></div>'+
+    '<div class="sec sgr">Detailtabel</div>'+
+    '<div class="scr"><table><thead><tr><th>Adviseur</th><th>Metingen</th><th>Direct</th><th>Niet direct</th><th>Contact</th><th>Conv na</th><th class="hg">Open kansen</th><th>Top reden</th></tr></thead><tbody>'+nabAdvR+'</tbody></table></div>'+
+    '<div class="r2">'+
+    '<div class="cc"><div class="cct">Mail vs bellen conv%</div><div style="height:250px"><canvas id="cMailVsBel"></canvas></div></div>'+
+    '<div class="cc"><div class="cct">Gem. dagen tot contact</div><div style="height:250px"><canvas id="cSnelheid"></canvas></div></div>'+
+    '</div>'
+  );
+  // ── PER MAAND PAGINA'S ──────────────────────────────────────────────────
+  // Each month page gets its OWN unique canvas IDs based on month index
+  M.forEach(function(m,mi){
+    var d=MD[m];
+    var cAdvId='cMAdv'+mi;   // unique per month
+    var cProvId='cMProv'+mi; // unique per month
+    var wrapId='mWrap'+mi;
+    var advR2=AN.map(function(a){
+      var ad=AD[a][m];if(!ad)return'';
+      var prev=M.slice(0,M.indexOf(m)).filter(function(pm){return AD[a][pm];});
+      var prevC=prev.length?AD[a][prev[prev.length-1]].conv:null;
+      var vs=prevC!==null?dh(ad.conv,prevC):'—';
+      return '<tr><td><strong>'+a+'</strong></td><td>'+ad.n+'</td><td>'+ad.b+'</td><td>'+ad.niet+'</td><td>'+pc(ad.conv)+'</td><td>'+ef(ad.wi)+'</td><td>'+ef(ad.wb)+'</td><td>'+vs+'</td></tr>';
+    }).join('');
+    var pvR=Object.entries(PV[m]||{}).sort(function(a,b){return b[1].n-a[1].n;}).map(function(e){
+      var p=e[0],v=e[1];
+      return '<tr><td><strong>'+p+'</strong></td><td>'+v.n+'</td><td>'+v.b+'</td><td>'+(v.n-v.b)+'</td><td>'+pc(v.c)+'</td></tr>';
+    }).join('');
+    addPage('m_'+m,
+      '<div class="sec spu">'+m+' &mdash; volledig detail</div>'+
+      '<div class="kg">'+
+      kpi('kp',d.n.toString(),'Ingemeten','')+
+      kpi('kp',d.b.toString(),'Besteld','van '+d.n+' metingen')+
+      kpi(d.conv>=75?'kg2':'kr','<span style="color:'+pHex(d.conv)+'">'+d.conv+'%</span>','Conversie','')+
+      kpi('',ef(d.wi),'Waarde ingemeten','','font-size:18px')+
+      kpi('',ef(d.wb),'Waarde besteld','','font-size:18px')+
+      kpi('',d.cwi+'%','Conv% waarde','')+
+      '</div>'+
+      '<div class="r2">'+
+      '<div class="cc"><div class="cct">Adviseurs '+m+' &mdash; conv%</div><div style="height:260px"><canvas id="'+cAdvId+'"></canvas></div></div>'+
+      '<div class="cc"><div class="cct">Provincie &mdash; '+m+'</div><div id="'+wrapId+'" style="position:relative"><canvas id="'+cProvId+'"></canvas></div></div>'+
+      '</div>'+
+      '<div class="sec spu">Per adviseur</div>'+
+      '<div class="scr"><table><thead><tr><th>Adviseur</th><th>Ing.</th><th>Best.</th><th>Niet</th><th>Conv%</th><th>Waarde ing.</th><th>Waarde best.</th><th>vs vorige mnd</th></tr></thead><tbody>'+
+      advR2+
+      '<tr class="tr-tot"><td>Totaal</td><td>'+d.n+'</td><td>'+d.b+'</td><td>'+d.niet+'</td><td>'+pc(d.conv)+'</td><td>'+ef(d.wi)+'</td><td>'+ef(d.wb)+'</td><td></td></tr>'+
+      '</tbody></table></div>'+
+      '<div class="sec spu">Provincie</div>'+
+      '<div class="scr"><table><thead><tr><th>Provincie</th><th>Ingemeten</th><th>Besteld</th><th>Niet</th><th>Conversie</th></tr></thead><tbody>'+pvR+'</tbody></table></div>'
+    );
+    // Store canvas IDs on the page element so initMonthCharts can find them
+    var pg=document.getElementById('pg_m_'+m);
+    if(pg){pg.setAttribute('data-cadv',cAdvId);pg.setAttribute('data-cprov',cProvId);pg.setAttribute('data-wrap',wrapId);}
+  });
+  // ── NIEUWE BESTELLINGEN ────────────────────────────────────────────────
+  if(NC.length){
+    var ncMail=NC.filter(function(x){return x.contact==='Mail';}).length;
+    var ncBel=NC.filter(function(x){return x.contact==='Bellen';}).length;
+    var ncW=NC.reduce(function(s,x){return s+x.waarde;},0);
+    var ncR=NC.map(function(x){
+      var b=x.contact==='Mail'?'<span style="background:#e3f2fd;color:#1565c0;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:700">&#128231; Mail</span>':x.contact==='Bellen'?'<span style="background:#e8f5e9;color:#1b5e20;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:700">&#128222; Bellen</span>':'<span style="color:#aaa">—</span>';
+      return '<tr><td><strong>'+x.naam+'</strong></td><td>'+x.maand+'</td><td>'+x.adv+'</td><td>'+ef(x.waarde)+'</td><td>'+b+'</td><td style="font-size:11px;color:#666">'+(x.reden||'—')+'</td></tr>';
+    }).join('');
+    var ncAd={};NC.forEach(function(x){if(!ncAd[x.adv])ncAd[x.adv]={n:0,w:0,mail:0,bel:0};ncAd[x.adv].n++;ncAd[x.adv].w+=x.waarde;if(x.contact==='Mail')ncAd[x.adv].mail++;if(x.contact==='Bellen')ncAd[x.adv].bel++;});
+    var ncAR=Object.entries(ncAd).sort(function(a,b){return b[1].n-a[1].n;}).map(function(e){var a=e[0],v=e[1];return '<tr><td><strong>'+a+'</strong></td><td>'+v.n+'</td><td>'+ef(v.w)+'</td><td>'+(v.mail?'&#128231; '+v.mail:'—')+'</td><td>'+(v.bel?'&#128222; '+v.bel:'—')+'</td></tr>';}).join('');
+    addPage('nc',
+      '<div class="ncb"><div class="ico">&#128338;</div><div class="txt"><strong>'+NC.length+' nieuwe bestellingen t.o.v. vorige upload</strong>Klanten die eerder NIET besteld hadden en nu WEL.<br>Extra omzet: <strong>'+ef(ncW)+'</strong> &nbsp;&middot;&nbsp; Mail: <strong>'+ncMail+'x</strong> &nbsp;&middot;&nbsp; Bellen: <strong>'+ncBel+'x</strong></div></div>'+
+      '<div class="kg">'+kpi('kb',NC.length.toString(),'Nieuwe best.','vs vorige upload')+kpi('kb',ef(ncW),'Extra omzet','')+kpi('kg2',ncMail+'x','Via mail','')+kpi('kg2',ncBel+'x','Via bellen','')+'</div>'+
+      '<div class="sec sbl">Alle nieuwe bestellingen</div>'+
+      '<div class="scr"><table><thead><tr><th class="hb">Klant</th><th class="hb">Maand</th><th class="hb">Adviseur</th><th class="hb">Waarde</th><th class="hb">Via</th><th class="hb">Reden</th></tr></thead><tbody>'+ncR+'</tbody></table></div>'+
+      '<div class="r2"><div class="cc"><div class="cct">Mail vs bellen</div><div style="height:210px"><canvas id="cNcMeth"></canvas></div></div><div class="cc"><div class="cct">Per maand</div><div style="height:210px"><canvas id="cNcMnd"></canvas></div></div></div>'+
+      '<div class="sec sbl">Per adviseur</div>'+
+      '<div class="scr"><table><thead><tr><th class="hb">Adviseur</th><th class="hb">Nieuwe best.</th><th class="hb">Extra waarde</th><th class="hb">Mail</th><th class="hb">Bellen</th></tr></thead><tbody>'+ncAR+'</tbody></table></div>'
+    );
+    window._ncCache={NC:NC,ncMail:ncMail,ncBel:ncBel,M:M};
+  }
+  // ── DOWNLOADS ──────────────────────────────────────────────────────────
+  var dlB=AN.map(function(a){return '<div class="db" onclick="dlAdv(\''+a+'\')"><div style="font-size:22px">&#128196;</div><div>'+a+'</div></div>';}).join('');
+  addPage('dl',
+    '<div class="sec">Downloads</div>'+
+    '<div class="ibox"><div class="it">&#8505;&#65039; Persoonlijke adviseurs-dashboards</div><p>Klik op een naam voor een persoonlijk dashboard met alleen die adviseur\'s data. Deelbaar via WhatsApp of GitHub.</p></div>'+
+    '<div class="dg">'+dlB+'</div>'+
+    '<button class="dbm" onclick="dlAll()">&#8659;&#65039; Download alle '+AN.length+' dashboards</button>'+
+    '<div class="sec" style="margin-top:16px">Beheerdersdashboard</div>'+
+    '<button class="dbm" onclick="dlSelf()">&#8659;&#65039; Download index.html</button>'
+  );
+  // init provincie na opbouw
+  setTimeout(function(){selProv('Totaal',document.querySelector('.mb.active'));},150);
+}
+function kpi(cls,val,lbl,sub,vstyle){
+  return '<div class="kpi '+cls+'"><div class="klbl">'+lbl+'</div><div class="kval"'+(vstyle?' style="'+vstyle+'"':'')+'>'+val+'</div>'+(sub?'<div class="ksub">'+sub+'</div>':'')+'</div>';
+}
+// ── CHARTS ────────────────────────────────────────────────────────────────
+function mkChart(id,cfg){
+  if(S.charts[id]){try{S.charts[id].destroy();}catch(e){}}
+  var el=document.getElementById(id);
+  if(!el){return;}
+  try{S.charts[id]=new Chart(el,cfg);}catch(e){console.error('Chart error '+id,e);}
+}
+function initMainCharts(D){
+  var M=D.months,AN=D.adviseurs,MD=D.MD,AD=D.AD;
+  var MCOLS=[O,DK,L,P,GR,BL,PU,'#ff9800','#009688','#795548','#607d8b','#e91e63'];
+  var q1M=M.slice(0,Math.min(3,M.length));
+  var q1g=q1M.length?r1(q1M.reduce(function(s,m){return s+MD[m].conv;},0)/q1M.length):0;
+  mkChart('cConvBar',{type:'bar',data:{labels:M,datasets:[
+    {data:M.map(function(m){return MD[m].conv;}),backgroundColor:M.map(function(_,i){return MCOLS[i%MCOLS.length];}),borderRadius:5},
+    {type:'line',data:M.map(function(){return q1g;}),borderColor:'#aaa',borderDash:[5,3],backgroundColor:'transparent',pointRadius:0,borderWidth:1.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.raw+'%';}}}},scales:{y:{min:50,max:90,grid:{color:'#f0f0f0'},ticks:{callback:function(v){return v+'%';}}}}}});
+  mkChart('cWaarde',{type:'bar',data:{labels:M,datasets:[
+    {data:M.map(function(m){return MD[m].wi;}),backgroundColor:M.map(function(_,i){return MCOLS[i%MCOLS.length]+'88';})},
+    {data:M.map(function(m){return MD[m].wb;}),backgroundColor:M.map(function(_,i){return MCOLS[i%MCOLS.length];})}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#f0f0f0'},ticks:{callback:function(v){return '€'+Math.round(v/1000)+'k';}}}}}});
+  mkChart('cAdvConv',{type:'bar',data:{labels:AN,datasets:M.map(function(m,i){return{label:m.slice(0,3),data:AN.map(function(a){return AD[a][m]?AD[a][m].conv:0;}),backgroundColor:MCOLS[i%MCOLS.length]};})},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:11,font:{size:11}}},tooltip:{callbacks:{label:function(ctx){var a=AN[ctx.dataIndex],m=M[ctx.datasetIndex],d=AD[a][m];return d?m+': '+d.conv+'% ('+d.b+'/'+d.n+')':'';}}}},scales:{x:{ticks:{autoSkip:false}},y:{min:35,max:100,grid:{color:'#f0f0f0'},ticks:{callback:function(v){return v+'%';}}}}}});
+  mkChart('cAdvWaarde',{type:'bar',data:{labels:AN,datasets:M.map(function(m,i){return{label:m.slice(0,3),data:AN.map(function(a){return AD[a][m]?AD[a][m].wi:0;}),backgroundColor:MCOLS[i%MCOLS.length]};})},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:11,font:{size:11}}}},scales:{x:{ticks:{autoSkip:false}},y:{grid:{color:'#f0f0f0'},ticks:{callback:function(v){return '€'+Math.round(v/1000)+'k';}}}}}});
+  mkChart('cNab',{type:'bar',data:{labels:M,datasets:[{data:M.map(function(m){return MD[m].nc;}),backgroundColor:M.map(function(_,i){return MCOLS[i%MCOLS.length];}),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){var m=M[ctx.dataIndex];return ctx.raw+'% ('+MD[m].nb+'/'+MD[m].nr+')';}}}},scales:{y:{min:0,max:60,grid:{color:'#f0f0f0'},ticks:{callback:function(v){return v+'%';}}}}}});
+  var allRed={};M.forEach(function(m){Object.entries(MD[m].red||{}).forEach(function(e){allRed[e[0]]=(allRed[e[0]]||0)+e[1];});});
+  var rs=Object.entries(allRed).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
+  mkChart('cReden',{type:'doughnut',data:{labels:rs.map(function(x){return x[0].length>24?x[0].slice(0,24)+'...':x[0];}),datasets:[{data:rs.map(function(x){return x[1];}),backgroundColor:[DK,O,RD,'#95a5a6',GR,L,'#9b59b6',BL],borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:10}}}}});
+}
+function initNab2Charts(D){
+  var Dx=D||S.data;if(!Dx)return;
+  var M=Dx.months,AN=Dx.adviseurs,AD=Dx.AD;
+  mkChart('cNabAdv',{type:'bar',data:{labels:AN,datasets:[
+    {label:'Direct',data:AN.map(function(a){return M.reduce(function(s,m){return s+(AD[a][m]?AD[a][m].b:0);},0);}),backgroundColor:GR,borderRadius:2},
+    {label:'Na contact',data:AN.map(function(a){return M.reduce(function(s,m){return s+(AD[a][m]?AD[a][m].convNa||0:0);},0);}),backgroundColor:O,borderRadius:2},
+    {label:'Contact geen result.',data:AN.map(function(a){return M.reduce(function(s,m){return s+(AD[a][m]?Math.max(0,(AD[a][m].nr||0)-(AD[a][m].convNa||0)):0);},0);}),backgroundColor:'#ff9800',borderRadius:2},
+    {label:'Open kansen',data:AN.map(function(a){return M.reduce(function(s,m){return s+(AD[a][m]?AD[a][m].openK:0);},0);}),backgroundColor:RD,borderRadius:2}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:11,font:{size:11}}}},scales:{x:{stacked:true,ticks:{autoSkip:false}},y:{stacked:true,grid:{color:'#f0f0f0'}}}}});
+  mkChart('cMailVsBel',{type:'bar',data:{labels:AN,datasets:[
+    {label:'Mail %',data:AN.map(function(a){var arr=M.filter(function(m){return AD[a][m]&&AD[a][m].mail>0;});return arr.length?r1(arr.reduce(function(s,m){return s+AD[a][m].mailConv*AD[a][m].mail;},0)/arr.reduce(function(s,m){return s+AD[a][m].mail;},0)):0;}),backgroundColor:BL,borderRadius:3},
+    {label:'Bellen %',data:AN.map(function(a){var arr=M.filter(function(m){return AD[a][m]&&AD[a][m].bellen>0;});return arr.length?r1(arr.reduce(function(s,m){return s+AD[a][m].belConv*AD[a][m].bellen;},0)/arr.reduce(function(s,m){return s+AD[a][m].bellen;},0)):0;}),backgroundColor:O,borderRadius:3}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:11,font:{size:11}}}},scales:{x:{ticks:{autoSkip:false}},y:{min:0,max:50,grid:{color:'#f0f0f0'},ticks:{callback:function(v){return v+'%';}}}}}});
+  mkChart('cSnelheid',{type:'bar',data:{labels:AN,datasets:[{data:AN.map(function(a){var arr=M.filter(function(m){return AD[a][m]&&AD[a][m].gemD>0;});return arr.length?r1(arr.reduce(function(s,m){return s+AD[a][m].gemD;},0)/arr.length):0;}),backgroundColor:PU,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.raw+' dagen';}}}},scales:{x:{ticks:{autoSkip:false}},y:{grid:{color:'#f0f0f0'}}}}});
+}
+function initNcCharts(D){
+  if(!window._ncCache)return;
+  var nc=window._ncCache;
+  mkChart('cNcMeth',{type:'doughnut',data:{labels:['📧 Mail ('+nc.ncMail+'x)','📞 Bellen ('+nc.ncBel+'x)'],datasets:[{data:[nc.ncMail,nc.ncBel],backgroundColor:[BL,O],borderWidth:3,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:12},boxWidth:12}}}}});
+  var nm={};nc.M.forEach(function(m){nm[m]=0;});nc.NC.forEach(function(x){if(nm[x.maand]!==undefined)nm[x.maand]++;});
+  mkChart('cNcMnd',{type:'bar',data:{labels:Object.keys(nm),datasets:[{data:Object.values(nm),backgroundColor:BL,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,ticks:{stepSize:1},grid:{color:'#f0f0f0'}}}}});
+}
+function initMonthCharts(D,m){
+  var Dx=D||S.data;if(!Dx)return;
+  var AN=Dx.adviseurs,AD=Dx.AD,PV=Dx.PV,M=Dx.months;
+  // Get canvas IDs from the page element's data attributes
+  var pg=document.getElementById('pg_m_'+m);
+  if(!pg)return;
+  var cAdvId=pg.getAttribute('data-cadv');
+  var cProvId=pg.getAttribute('data-cprov');
+  var wrapId=pg.getAttribute('data-wrap');
+  var q1M=M.slice(0,Math.min(3,M.length));
+  var ac=AN.map(function(a){var c=AD[a][m]?AD[a][m].conv:0;return pHex(c);});
+  var q1r=AN.map(function(a){var arr=q1M.filter(function(mm){return AD[a][mm];});return arr.length?r1(arr.reduce(function(s,mm){return s+AD[a][mm].conv;},0)/arr.length):0;});
+  mkChart(cAdvId,{type:'bar',data:{labels:AN,datasets:[
+    {label:m,data:AN.map(function(a){return AD[a][m]?AD[a][m].conv:0;}),backgroundColor:ac,borderRadius:4},
+    {label:'Q1 gem.',data:q1r,backgroundColor:'rgba(45,45,45,0.18)',borderColor:DK,borderWidth:1.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:11,font:{size:11}}},tooltip:{callbacks:{label:function(ctx){return ctx.dataset.label+': '+ctx.raw+'%';}}}},scales:{x:{ticks:{autoSkip:false}},y:{min:30,max:100,grid:{color:'#f0f0f0'},ticks:{callback:function(v){return v+'%';}}}}}});
+  var aps=Object.entries(PV[m]||{}).sort(function(a,b){return b[1].c-a[1].c;});
+  var aph=Math.max(220,aps.length*38+60);
+  var wrap=document.getElementById(wrapId);if(wrap)wrap.style.height=aph+'px';
+  mkChart(cProvId,{type:'bar',data:{labels:aps.map(function(x){return x[0];}),datasets:[{data:aps.map(function(x){return x[1].c;}),backgroundColor:aps.map(function(x){return gc(x[1].c);})}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return aps[ctx.dataIndex][1].c+'% ('+aps[ctx.dataIndex][1].b+'/'+aps[ctx.dataIndex][1].n+')';}}}},scales:{x:{min:0,max:110,ticks:{callback:function(v){return v+'%';}},grid:{color:'#f0f0f0'}},y:{ticks:{autoSkip:false,font:{size:10}}}}}});
+}
+// ── provincie ─────────────────────────────────────────────────────────────
+var _cP=null,_cPV=null;
+function selProv(m,el){
+  if(!S.data)return;
+  var PV=S.data.PV;
+  document.querySelectorAll('.mb').forEach(function(b){b.classList.remove('active');});
+  if(el)el.classList.add('active');
+  var d=PV[m]||{};
+  var pt=document.getElementById('ptitle');if(pt)pt.textContent='Conversie % — '+m;
+  var pvt=document.getElementById('pvtitle');if(pvt)pvt.textContent='Volume — '+m;
+  var s=Object.entries(d).sort(function(a,b){return b[1].c-a[1].c;});
+  var h2=Math.max(240,s.length*40+60);
+  var pw=document.getElementById('pwrap');if(pw)pw.style.height=h2+'px';
+  if(_cP){_cP.destroy();_cP=null;}
+  if(!document.getElementById('cProv'))return;
+  _cP=new Chart(document.getElementById('cProv'),{type:'bar',data:{labels:s.map(function(x){return x[0];}),datasets:[{data:s.map(function(x){return x[1].c;}),backgroundColor:s.map(function(x){return gc(x[1].c);})}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return s[ctx.dataIndex][1].c+'% ('+s[ctx.dataIndex][1].b+'/'+s[ctx.dataIndex][1].n+')';}}}},scales:{x:{min:0,max:110,ticks:{callback:function(v){return v+'%';}},grid:{color:'#f0f0f0'}},y:{ticks:{autoSkip:false,font:{size:11}}}}}});
+  var vs=Object.entries(d).sort(function(a,b){return b[1].n-a[1].n;});
+  if(_cPV){_cPV.destroy();_cPV=null;}
+  if(!document.getElementById('cProvVol'))return;
+  _cPV=new Chart(document.getElementById('cProvVol'),{type:'bar',data:{labels:vs.map(function(x){return x[0];}),datasets:[{data:vs.map(function(x){return x[1].n;}),backgroundColor:L},{data:vs.map(function(x){return x[1].b;}),backgroundColor:O}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{autoSkip:false,maxRotation:45,font:{size:11}}},y:{grid:{color:'#f0f0f0'}}}}});
+  var tb=document.getElementById('provtb');if(!tb)return;tb.innerHTML='';
+  vs.forEach(function(x){var p=x[0],v=x[1];tb.innerHTML+='<tr><td><strong>'+p+'</strong></td><td>'+v.n+'</td><td>'+v.b+'</td><td>'+(v.n-v.b)+'</td><td>'+pc(v.c)+'</td></tr>';});
+}
+// ── adviseur download ──────────────────────────────────────────────────────
+function buildAdvHTML(adv){
+  var D=S.data,M=D.months,MD=D.MD,AD=D.AD;
+  var d=AD[adv]||{};
+  var tN=M.reduce(function(s,m){return s+(d[m]?d[m].n:0);},0);
+  var tB=M.reduce(function(s,m){return s+(d[m]?d[m].b:0);},0);
+  var tWi=M.reduce(function(s,m){return s+(d[m]?d[m].wi:0);},0);
+  var tWb=M.reduce(function(s,m){return s+(d[m]?d[m].wb:0);},0);
+  var tC=tN>0?r1(tB/tN*100):0;
+  var tGem=r1(M.reduce(function(s,m){return s+MD[m].conv;},0)/M.length);
+  var diff=r1(tC-tGem);
+  var pvAcc={};
+  M.forEach(function(m){if(!d[m])return;Object.entries(d[m].prov||{}).forEach(function(e){var p=e[0],v=e[1];if(!pvAcc[p])pvAcc[p]={n:0,b:0};pvAcc[p].n+=v.n;pvAcc[p].b+=v.b;});});
+  Object.keys(pvAcc).forEach(function(p){var v=pvAcc[p];v.c=v.n>0?r1(v.b/v.n*100):0;});
+  var pvS=Object.entries(pvAcc).sort(function(a,b){return b[1].n-a[1].n;});
+  var mndR=M.map(function(m){var dm=d[m];if(!dm)return '<tr><td>'+m+'</td><td colspan="5" style="color:#bbb">—</td></tr>';var tg=MD[m].conv;var dv=r1(dm.conv-tg);var col=pHex(dm.conv);return '<tr><td>'+m+'</td><td>'+dm.n+'</td><td>'+dm.b+'</td><td style="font-weight:700;color:'+col+'">'+dm.conv+'%</td><td style="color:#888;font-size:11px">'+tg+'%</td><td style="color:'+(dv>=0?GR:RD)+';font-weight:700;font-size:11px">'+(dv>=0?'+':'')+dv+'%</td></tr>';}).join('');
+  var pvR=pvS.map(function(e){var p=e[0],v=e[1];var t=pTier(v.c);var col=t.fg+';background:'+t.bg;return '<tr><td><strong>'+p+'</strong></td><td>'+v.n+'</td><td>'+v.b+'</td><td>'+(v.n-v.b)+'</td><td><span style="color:'+col+';padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700">'+v.c+'%</span></td></tr>';}).join('');
+  var cvJ=JSON.stringify(M.map(function(m){return d[m]?d[m].conv:0;}));
+  var tvJ=JSON.stringify(M.map(function(m){return MD[m].conv;}));
+  var wiJ=JSON.stringify(M.map(function(m){return d[m]?d[m].wi:0;}));
+  var wbJ=JSON.stringify(M.map(function(m){return d[m]?d[m].wb:0;}));
+  var bJ=JSON.stringify(M.map(function(m){return d[m]?d[m].b:0;}));
+  var nJ=JSON.stringify(M.map(function(m){return d[m]?d[m].niet:0;}));
+  var nbJ=JSON.stringify(M.map(function(m){return d[m]?d[m].nc:0;}));
+  var pvJ=JSON.stringify(pvS.map(function(e){return{p:e[0],n:e[1].n,b:e[1].b,c:e[1].c};}));
+  var allRd={};M.forEach(function(m){if(d[m])Object.entries(d[m].red||{}).forEach(function(e){allRd[e[0]]=(allRd[e[0]]||0)+e[1];});});
+  var rdJ=JSON.stringify(allRd);
+  var mJ=JSON.stringify(M);
+  var diffCol=diff>=0?GR:RD;
+  return '<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+adv+' — Dashboard</title>'+
+  '<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@500&display=swap" rel="stylesheet">'+
+  '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></scr'+'ipt>'+
+  '<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;background:#F9F7F4;color:#2D2D2D;font-size:13px}.hdr{background:#2D2D2D;padding:0 22px;display:flex;align-items:center;justify-content:space-between;min-height:54px;gap:10px;flex-wrap:wrap}.brand{font-family:"DM Mono",monospace;font-size:14px;font-weight:500;color:#F59901}.nb{background:#F59901;color:#2D2D2D;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700}.tabs{background:#fff;border-bottom:1.5px solid #eee;display:flex;overflow-x:auto;padding:0 16px}.tab{padding:10px 15px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;border-bottom:2.5px solid transparent;color:#999;white-space:nowrap;font-family:inherit}.tab.active{color:#F59901;border-bottom-color:#F59901}.page{display:none;padding:18px 22px;max-width:1100px}.page.active{display:block}.sec{font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#bbb;margin:18px 0 10px;display:flex;align-items:center;gap:8px}.sec::before{content:"";display:block;width:3px;height:13px;background:#F59901;border-radius:2px}.kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:18px}.kpi{background:#fff;border-radius:11px;padding:14px 16px;border:1px solid #eee;position:relative;overflow:hidden}.kpi::after{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:#eee}.kpi.ka::after{background:#F59901}.kpi.kg::after{background:#27ae60}.kpi.kr::after{background:#e74c3c}.klbl{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}.kval{font-size:22px;font-weight:700;color:#2D2D2D;line-height:1.2}.ksub{font-size:10px;color:#bbb;margin-top:3px}.r2{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:16px}.cc{background:#fff;border-radius:11px;padding:16px;border:1px solid #eee}.cc.full{grid-column:1/-1}.cct{font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px}table{width:100%;border-collapse:collapse;font-size:12px}thead th{background:#2D2D2D;color:#fff;padding:7px 9px;text-align:left;font-size:11px;font-weight:500}tbody tr:nth-child(even){background:#fafafa}tbody td{padding:6px 9px;border-bottom:1px solid #f2f2f2}.tr-tot td{border-top:2px solid #2D2D2D;background:#f4f4f4!important;font-weight:700}.tl{margin-top:10px;padding-top:8px;border-top:1.5px dashed #F59901;font-size:11px;color:#F59901;font-weight:700}.scr{overflow-x:auto;margin-bottom:14px}@media(max-width:640px){.r2{grid-template-columns:1fr}.page{padding:12px}}</style>'+
+  '</head><body>'+
+  '<div class="hdr"><div class="brand">raamdecoratie.com</div><div class="nb">'+adv+'</div><span style="font-size:11px;color:#888">'+M[0]+' – '+M[M.length-1]+'</span></div>'+
+  '<div class="tabs"><button class="tab active" onclick="sp(\'ov\',this)">📊 Overzicht</button><button class="tab" onclick="sp(\'mn\',this)">📅 Per maand</button><button class="tab" onclick="sp(\'rg\',this)">🗺️ Regio\'s</button><button class="tab" onclick="sp(\'nb\',this)">📞 Nabellen</button></div>'+
+  '<div class="page active" id="p-ov">'+
+  '<div class="sec">Totaal overzicht</div>'+
+  '<div class="kg">'+
+  '<div class="kpi ka"><div class="klbl">Ingemeten</div><div class="kval">'+tN+'</div></div>'+
+  '<div class="kpi ka"><div class="klbl">Besteld</div><div class="kval">'+tB+'</div><div class="ksub">van '+tN+' metingen</div></div>'+
+  '<div class="kpi '+(tC>=tGem?'kg':'kr')+'"><div class="klbl">Conversie</div><div class="kval" style="color:'+pHex(tC)+'">'+tC+'%</div><div class="ksub"><span style="color:'+diffCol+';font-weight:700">'+(diff>=0?'+':'')+diff+'%</span> vs team ('+tGem+'%)</div></div>'+
+  '<div class="kpi"><div class="klbl">Waarde ingemeten</div><div class="kval" style="font-size:18px">€'+Number(Math.round(tWi)).toLocaleString('nl-NL')+'</div></div>'+
+  '<div class="kpi"><div class="klbl">Waarde besteld</div><div class="kval" style="font-size:18px">€'+Number(Math.round(tWb)).toLocaleString('nl-NL')+'</div></div>'+
+  '</div>'+
+  '<div class="r2"><div class="cc"><div class="cct">Conv% — jij vs team</div><div style="height:220px"><canvas id="cL"></canvas></div></div>'+
+  '<div class="cc"><div class="cct">Waarde ingemeten vs besteld</div><div style="height:220px"><canvas id="cW"></canvas></div></div></div>'+
+  '<div class="sec">Per maand</div>'+
+  '<table><thead><tr><th>Maand</th><th>Ingemeten</th><th>Besteld</th><th>Conv%</th><th>Team gem.</th><th>Verschil</th></tr></thead><tbody>'+mndR+
+  '<tr class="tr-tot"><td>Totaal</td><td>'+tN+'</td><td>'+tB+'</td><td style="color:'+diffCol+';font-weight:700">'+tC+'%</td><td>'+tGem+'%</td><td style="color:'+diffCol+';font-weight:700">'+(diff>=0?'+':'')+diff+'%</td></tr>'+
+  '</tbody></table><div class="tl">Team gem.: '+tGem+'%</div></div>'+
+  '<div class="page" id="p-mn"><div class="sec">Per maand detail</div><div class="r2"><div class="cc full"><div class="cct">Besteld vs niet besteld</div><div style="height:250px"><canvas id="cBr"></canvas></div></div></div></div>'+
+  '<div class="page" id="p-rg"><div class="sec">Mijn regio\'s</div><div class="r2"><div class="cc full"><div class="cct">Conversie% per provincie</div><div id="pvW" style="position:relative"><canvas id="cPv"></canvas></div></div></div>'+
+  '<div class="scr"><table><thead><tr><th>Provincie</th><th>Ing.</th><th>Best.</th><th>Niet</th><th>Conv%</th></tr></thead><tbody>'+pvR+'</tbody></table></div></div>'+
+  '<div class="page" id="p-nb"><div class="sec">Nabellen</div><div class="r2"><div class="cc"><div class="cct">Nabellen conv%</div><div style="height:220px"><canvas id="cNb"></canvas></div></div><div class="cc"><div class="cct">Redenen</div><div style="height:220px"><canvas id="cRd"></canvas></div></div></div></div>'+
+  '<scr'+'ipt>'+
+  'var M='+mJ+',CV='+cvJ+',TV='+tvJ+',WI='+wiJ+',WB='+wbJ+',BV='+bJ+',NV='+nJ+',NAB='+nbJ+',PD='+pvJ+',RD='+rdJ+';'+
+  'var O="#F59901",DK="#2D2D2D",L="#F9CD92",GR="#27ae60",RDC="#e74c3c";'+
+  'function pHex(v){return v<=60?"#8b0000":v<=70?"#e74c3c":v<=75?"#F59901":v<=80?"#8bc34a":v<=85?"#27ae60":"#1b5e20";}'+
+  'function sp(id,el){document.querySelectorAll(".page").forEach(function(p){p.classList.remove("active");});document.querySelectorAll(".tab").forEach(function(t){t.classList.remove("active");});document.getElementById("p-"+id).classList.add("active");el.classList.add("active");}'+
+  'new Chart(document.getElementById("cL"),{type:"line",data:{labels:M,datasets:[{label:"Jij",data:CV,borderColor:O,backgroundColor:O+"33",tension:.35,pointRadius:6,pointBackgroundColor:O,borderWidth:2.5},{label:"Team",data:TV,borderColor:DK,borderDash:[5,3],backgroundColor:"transparent",tension:.35,pointRadius:4,pointBackgroundColor:DK,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"bottom",labels:{boxWidth:11,font:{size:11}}}},scales:{y:{min:40,max:100,grid:{color:"#f0f0f0"},ticks:{callback:function(v){return v+"%";}}}}}});'+
+  'new Chart(document.getElementById("cW"),{type:"bar",data:{labels:M,datasets:[{data:WI,backgroundColor:L},{data:WB,backgroundColor:O}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{grid:{color:"#f0f0f0"},ticks:{callback:function(v){return "\\u20AC"+Math.round(v/1000)+"k";}}}}}});'+
+  'new Chart(document.getElementById("cBr"),{type:"bar",data:{labels:M,datasets:[{label:"Besteld",data:BV,backgroundColor:O},{label:"Niet",data:NV,backgroundColor:DK}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{stacked:true},y:{stacked:true,grid:{color:"#f0f0f0"}}}}});'+
+  'var ph=Math.max(200,PD.length*38+60);document.getElementById("pvW").style.height=ph+"px";'+
+  'new Chart(document.getElementById("cPv"),{type:"bar",data:{labels:PD.map(function(x){return x.p;}),datasets:[{data:PD.map(function(x){return x.c;}),backgroundColor:PD.map(function(x){return pHex(x.c);})}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return PD[ctx.dataIndex].c+"% ("+PD[ctx.dataIndex].b+"/"+PD[ctx.dataIndex].n+")";}}}},scales:{x:{min:0,max:110,ticks:{callback:function(v){return v+"%";}},grid:{color:"#f0f0f0"}},y:{ticks:{autoSkip:false}}}}});'+
+  'new Chart(document.getElementById("cNb"),{type:"bar",data:{labels:M,datasets:[{data:NAB,backgroundColor:O,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:60,grid:{color:"#f0f0f0"},ticks:{callback:function(v){return v+"%";}}}}}});'+
+  'var rs=Object.entries(RD).sort(function(a,b){return b[1]-a[1];}).slice(0,8);'+
+  'new Chart(document.getElementById("cRd"),{type:"doughnut",data:{labels:rs.map(function(x){return x[0].length>22?x[0].slice(0,22)+"...":x[0];}),datasets:[{data:rs.map(function(x){return x[1];}),backgroundColor:["#2D2D2D","#F59901","#e74c3c","#95a5a6","#27ae60","#F9CD92","#9b59b6","#3498db"],borderWidth:2,borderColor:"#fff"}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{font:{size:10},boxWidth:10}}}}});'+
+  '</scr'+'ipt></body></html>';
+}
+function dlAdv(adv){var html=buildAdvHTML(adv);var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));a.download=adv.toLowerCase()+'_dashboard.html';a.click();}
+function dlAll(){S.data.adviseurs.forEach(function(a,i){setTimeout(function(){dlAdv(a);},i*500);});}
+function dlSelf(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([document.documentElement.outerHTML],{type:'text/html;charset=utf-8'}));a.download='index.html';a.click();}
+</script>
+</body>
+</html>
