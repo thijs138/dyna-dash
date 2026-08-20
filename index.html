@@ -149,17 +149,23 @@ tbody td{padding:6px 9px;border-bottom:1px solid #f2f2f2}
 // ── globals ──────────────────────────────────────────────────────────────
 var O='#F59901',DK='#2D2D2D',L='#F9CD92',P='#ce93d8',GR='#27ae60',BL='#1565c0',RD='#e74c3c',PU='#9c27b0';
 var MORD=['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'];
-// Maand-detectie: herkent de Nederlandse maandnaam aan het begin van de tabbladnaam,
-// ongeacht wat er achteraan staat (jaartal, spaties, haakjes, etc.) — zo worden ALLE
-// maand-tabbladen die in de bellijst staan automatisch meegenomen, inclusief nieuwe
-// maanden die later worden toegevoegd (zoals Augustus), zonder dat deze lijst
-// handmatig moet worden bijgewerkt.
+// Maand-detectie: herkent de Nederlandse maandnaam (voluit of afgekort, bv. "Aug 2026")
+// aan het begin van de tabbladnaam, EN telt een tabblad alleen mee als "2026" er ook
+// in de naam staat. Zo worden alle 2026-maand-tabbladen automatisch meegenomen —
+// inclusief nieuwe maanden die later worden toegevoegd — maar tabbladen van andere
+// jaren (zoals "Juli 2025") of overzicht-tabbladen (zoals "Belplan", "Redenen",
+// "Alle maanden 2026") worden genegeerd.
 var MCAP={'januari':'Januari','februari':'Februari','maart':'Maart','april':'April','mei':'Mei','juni':'Juni','juli':'Juli','augustus':'Augustus','september':'September','oktober':'Oktober','november':'November','december':'December'};
+var MABBR={'jan':'Januari','feb':'Februari','mrt':'Maart','apr':'April','mei':'Mei','jun':'Juni','jul':'Juli','aug':'Augustus','sep':'September','okt':'Oktober','nov':'November','dec':'December'};
 function detectMonth(sheetName){
   if(!sheetName)return null;
   var s=String(sheetName).toLowerCase().trim().replace(/\s+/g,' ');
+  if(s.indexOf('2026')===-1)return null; // alleen tabbladen van 2026
   var m=s.match(/^(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december)\b/);
-  return m?MCAP[m[1]]:null;
+  if(m)return MCAP[m[1]];
+  var m2=s.match(/^(jan|feb|mrt|apr|mei|jun|jul|aug|sep|okt|nov|dec)\b/);
+  if(m2)return MABBR[m2[1]];
+  return null;
 }
 var PSHT={'jan':'Januari','feb':'Februari','mrt':'Maart','apr':'April','mei':'Mei','jun':'Juni','jul':'Juli','aug':'Augustus','sep':'September','okt':'Oktober','nov':'November','dec':'December'};
 var BELG=['vlaanderen','brussel','provincie antwerpen','prov. antwerpen','vlaams gewest','vlaams-brabant','west-vlaanderen','oost-vlaanderen'];
@@ -241,7 +247,10 @@ function detectCols(keys){
   var p={ordr:/ordernummer|meetservice/i,klant:/klant|naam/i,adv:/adviseur/i,waarde:/waarde|prijs/i,besteld:/besteld/i,dtM:/datum.*met|meetdatum/i,dtB:/datum.*bell|bel.*datum/i,bom:/bel.*mail|mail.*bel/i,reden:/reden/i};
   keys.forEach(function(k){Object.entries(p).forEach(function(e){if(!m[e[0]]&&e[1].test(k))m[e[0]]=k;});});
   if(!m.ordr&&keys[2])m.ordr=keys[2];
-  if(!m.adv&&keys[4])m.adv=keys[4];
+  // Adviseur-kolom NIET blind op positie 4 gokken: als een tabblad geen "Adviseur"
+  // header heeft, wordt anders per ongeluk een andere kolom (bv. Waarde) als
+  // adviseursnaam gebruikt. Rijen zonder herkende adviseur worden verderop
+  // toch al overgeslagen, dus dit is veilig.
   if(!m.waarde&&keys[5])m.waarde=keys[5];
   if(!m.besteld&&keys[6])m.besteld=keys[6];
   if(!m.dtB&&keys[7])m.dtB=keys[7];
