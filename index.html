@@ -149,7 +149,18 @@ tbody td{padding:6px 9px;border-bottom:1px solid #f2f2f2}
 // ── globals ──────────────────────────────────────────────────────────────
 var O='#F59901',DK='#2D2D2D',L='#F9CD92',P='#ce93d8',GR='#27ae60',BL='#1565c0',RD='#e74c3c',PU='#9c27b0';
 var MORD=['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'];
-var MALI={'januari 2026':'Januari','februari 2026':'Februari','maart 2026':'Maart','april 2026':'April','mei 2026':'Mei','juni 2026':'Juni','juli 2026':'Juli','augustus 2026':'Augustus','september 2026':'September','oktober 2026':'Oktober','november 2026':'November','december 2026':'December','januari':'Januari','februari':'Februari','maart':'Maart','april':'April','mei':'Mei','juni':'Juni','juli':'Juli','augustus':'Augustus','september':'September','oktober':'Oktober','november':'November','december':'December'};
+// Maand-detectie: herkent de Nederlandse maandnaam aan het begin van de tabbladnaam,
+// ongeacht wat er achteraan staat (jaartal, spaties, haakjes, etc.) — zo worden ALLE
+// maand-tabbladen die in de bellijst staan automatisch meegenomen, inclusief nieuwe
+// maanden die later worden toegevoegd (zoals Augustus), zonder dat deze lijst
+// handmatig moet worden bijgewerkt.
+var MCAP={'januari':'Januari','februari':'Februari','maart':'Maart','april':'April','mei':'Mei','juni':'Juni','juli':'Juli','augustus':'Augustus','september':'September','oktober':'Oktober','november':'November','december':'December'};
+function detectMonth(sheetName){
+  if(!sheetName)return null;
+  var s=String(sheetName).toLowerCase().trim().replace(/\s+/g,' ');
+  var m=s.match(/^(januari|februari|maart|april|mei|juni|juli|augustus|september|oktober|november|december)\b/);
+  return m?MCAP[m[1]]:null;
+}
 var PSHT={'jan':'Januari','feb':'Februari','mrt':'Maart','apr':'April','mei':'Mei','jun':'Juni','jul':'Juli','aug':'Augustus','sep':'September','okt':'Oktober','nov':'November','dec':'December'};
 var BELG=['vlaanderen','brussel','provincie antwerpen','prov. antwerpen','vlaams gewest','vlaams-brabant','west-vlaanderen','oost-vlaanderen'];
 var S={bellFiles:null,provFile:null,data:null,prevRows:null,charts:{}};
@@ -208,7 +219,7 @@ function parseBell(wbs){
   var rows=[];
   wbs.forEach(function(wb){
     wb.SheetNames.forEach(function(sn){
-      var maand=MALI[sn.toLowerCase().trim()];
+      var maand=detectMonth(sn);
       if(!maand)return;
       var data=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:null,raw:false});
       if(!data.length)return;
