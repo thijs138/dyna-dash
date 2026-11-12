@@ -90,6 +90,8 @@ body{font-family:"Manrope",Arial,sans-serif;background:var(--bg);color:var(--dk)
 table{width:100%;border-collapse:collapse;font-size:12px}
 thead th{background:#f3f2ef;color:var(--ink2);padding:8px 9px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;border-bottom:1.5px solid var(--grid)}
 thead th.hb{background:#e8f0fb;color:#1c5cab}thead th.hp{background:#f3e9f7;color:#6a1b8f}thead th.hg{background:#e6f6ea;color:#0ca30c}
+thead th.sortable{cursor:pointer;user-select:none}
+thead th.sortable:hover{color:var(--or)}
 tbody tr:nth-child(even){background:#fafafa}
 tbody tr:hover{background:#fff8ec}
 tbody td{padding:7px 9px;border-bottom:1px solid #f2f2f2}
@@ -128,6 +130,7 @@ tbody td{padding:7px 9px;border-bottom:1px solid #f2f2f2}
 .autoload{display:flex;flex-direction:column;align-items:center;gap:14px;padding:30px 0}
 .modal-ov{position:fixed;inset:0;background:rgba(20,20,20,.5);display:flex;align-items:flex-start;justify-content:center;z-index:80;padding:40px 16px;overflow-y:auto}
 .modal{background:var(--wh);border-radius:14px;padding:24px 26px;max-width:680px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+#meetbonModal .modal{max-width:900px}
 .modal-h{display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:700;margin-bottom:16px}
 .modal-x{background:none;border:none;font-size:20px;cursor:pointer;color:#999;line-height:1}
 .modal-x:hover{color:var(--dk)}
@@ -799,17 +802,13 @@ function buildAllPages(D){
   var fdM=fdTargetMonths().filter(function(m){return D.months.indexOf(m)>-1;});
   if(fdM.length){
     var fdRows=D.rows.filter(function(r){return fdM.indexOf(r.maand)>-1&&r.ticket;});
-    var fdTr=fdRows.map(function(r){
-      return '<tr><td><strong>'+(r.klant||'—')+'</strong></td><td>'+(r.ordr||'—')+'</td><td>'+r.adv+'</td><td>'+r.maand+'</td><td>'+r.ticket+'</td>'+
-      '<td><button class="mb" onclick="openMeetbon(\''+r.ticket+'\')">&#128196; Bekijk meetbon</button></td></tr>';
-    }).join('');
+    window._fdRows=fdRows;
     addPage('fd',
       '<div class="sec">Meetbonnen &mdash; '+fdM.join(' &amp; ')+'</div>'+
       '<div class="ibox ibl"><div class="it">&#8505;&#65039; Freshdesk meetbon-koppeling (read-only)</div><p>Haalt de interne meetbon (PDF) per ticket op en leest de tekst uit. Alleen voor de huidige en vorige maand, om het aantal Freshdesk-aanroepen laag te houden. Vereist een API-key &mdash; zie &#9881;&#65039; Instellingen.</p></div>'+
-      '<div class="scr"><table><thead><tr><th>Klant</th><th>Order</th><th>Adviseur</th><th>Maand</th><th>Ticket</th><th></th></tr></thead><tbody>'+
-      (fdTr||'<tr><td colspan="6" style="color:#999">Geen rijen met ticketnummer gevonden voor deze maanden.</td></tr>')+
-      '</tbody></table></div>'
+      '<div class="scr"><table><thead><tr><th>Klant</th><th>Order</th><th>Adviseur</th><th class="sortable" onclick="toggleFdSort()" title="Sorteer op datum">Datum meting <span id="fdSortIcon">&#8597;</span></th><th>Maand</th><th>Ticket</th><th></th></tr></thead><tbody id="fdTbody"></tbody></table></div>'
     );
+    renderFdTable();
   }
   // ── DOWNLOADS ──────────────────────────────────────────────────────────
   var dlB=AN.map(function(a){return '<div class="db" onclick="dlAdv(\''+a+'\')"><div style="font-size:22px">&#128196;</div><div>'+a+'</div></div>';}).join('');
@@ -1028,6 +1027,36 @@ function showMeetbonModal(state,data){
   else if(state==='error'){h.textContent='Meetbon — fout';body.innerHTML='<div class="uperr" style="display:block">'+escapeHtml(data)+'</div>';}
   else if(state==='done'){h.textContent='Meetbon — ticket '+escapeHtml(data.ticketId);body.innerHTML=renderMeetbon(data);}
 }
+var FD_SORT={dir:0};
+function fdDateVal(r){
+  var m=(r.dtM||'').match(/^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  if(!m)return null;
+  return new Date(+m[3],+m[2]-1,+m[1],+(m[4]||0),+(m[5]||0)).getTime();
+}
+function renderFdTable(){
+  var tbody=document.getElementById('fdTbody');
+  if(!tbody)return;
+  var rows=(window._fdRows||[]).slice();
+  if(FD_SORT.dir){
+    rows.sort(function(a,b){
+      var va=fdDateVal(a),vb=fdDateVal(b);
+      if(va===null&&vb===null)return 0;
+      if(va===null)return 1;
+      if(vb===null)return -1;
+      return (va-vb)*FD_SORT.dir;
+    });
+  }
+  tbody.innerHTML=rows.map(function(r){
+    return '<tr><td><strong>'+(r.klant||'—')+'</strong></td><td>'+(r.ordr||'—')+'</td><td>'+r.adv+'</td><td>'+(r.dtM||'—')+'</td><td>'+r.maand+'</td><td>'+r.ticket+'</td>'+
+    '<td><button class="mb" onclick="openMeetbon(\''+r.ticket+'\')">&#128196; Bekijk meetbon</button></td></tr>';
+  }).join('')||'<tr><td colspan="7" style="color:#999">Geen rijen met ticketnummer gevonden voor deze maanden.</td></tr>';
+  var icon=document.getElementById('fdSortIcon');
+  if(icon)icon.innerHTML=FD_SORT.dir===1?'&#9650;':FD_SORT.dir===-1?'&#9660;':'&#8597;';
+}
+function toggleFdSort(){
+  FD_SORT.dir=FD_SORT.dir===1?-1:1;
+  renderFdTable();
+}
 function openMeetbon(ticketId){
   var key=getFdKey();
   if(!key){showMeetbonModal('error','Nog geen Freshdesk API-key ingesteld. Open ⚙️ Instellingen om er een op te slaan.');return;}
@@ -1063,15 +1092,17 @@ function renderMeetbon(p){
     '<td>'+escapeHtml(pr.breedte)+' &times; '+escapeHtml(pr.hoogte)+'</td><td>'+escapeHtml(pr.bediening)+'</td><td>'+escapeHtml(pr.systeem)+'</td>'+
     '<td>'+escapeHtml(pr.ruimte)+'</td><td style="font-size:11px;color:#777">'+escapeHtml(pr.montage)+(pr.montage&&pr.opmerkingen?' — ':'')+escapeHtml(pr.opmerkingen)+'</td></tr>';
   }).join('');
-  var prodTbl=p.producten&&p.producten.length?'<table class="prodtbl"><thead><tr><th>#</th><th>Aantal</th><th>Product</th><th>Kleur</th><th>Afmeting</th><th>Bediening</th><th>Systeem</th><th>Ruimte</th><th>Montage / opm.</th></tr></thead><tbody>'+prodRows+'</tbody></table>':'<p class="unote" style="max-width:none;text-align:left">Geen producttabel herkend in de PDF-tekst.</p>';
+  var prodTbl=p.producten&&p.producten.length?'<div class="scr"><table class="prodtbl"><thead><tr><th>#</th><th>Aantal</th><th>Product</th><th>Kleur</th><th>Afmeting</th><th>Bediening</th><th>Systeem</th><th>Ruimte</th><th>Montage / opm.</th></tr></thead><tbody>'+prodRows+'</tbody></table></div>':'';
   var a=p.aanvullend||{};
   var aanv=['wensen','opmerkingenAfspraak','montage'].map(function(k){
     if(!a[k])return'';
     var lbl=k==='wensen'?'Speciale wensen productie':k==='opmerkingenAfspraak'?'Opmerkingen over de afspraak':'Bijzonderheden voor montage';
     return '<div class="aanv"><b>'+lbl+'</b>'+escapeHtml(a[k])+'</div>';
   }).join('');
-  return top+prodTbl+aanv+
-    '<details class="rawtoggle"><summary>Ruwe tekst-extractie tonen</summary><div class="pdftext">'+escapeHtml(p.raw)+'</div></details>';
+  var parseFailed=(!p.producten||!p.producten.length)&&!h.adviseur&&!aanv;
+  var warn=parseFailed?'<div class="ibox iwarn"><div class="it">&#9888;&#65039; Structuur niet herkend</div><p>Kon geen producten/velden uit deze PDF parsen — mogelijk is de meetbon-opmaak anders dan verwacht. Bekijk de ruwe tekst-extractie hieronder.</p></div>':'';
+  return top+warn+prodTbl+aanv+
+    '<details class="rawtoggle"'+(parseFailed?' open':'')+'><summary>Ruwe tekst-extractie tonen</summary><div class="pdftext">'+escapeHtml(p.raw)+'</div></details>';
 }
 // ── PDF-tekst extractie & meetbon-parsing (pdf.js, client-side) ─────────
 function pageTextLines(page){
@@ -1099,7 +1130,18 @@ function parseProductBlock(num,text){
   var obj={nr:num};
   PROD_LABELS.forEach(function(lbl){
     var li=lines.indexOf(lbl);
-    if(li===-1||li+1>=lines.length)return;
+    if(li===-1){
+      // Fallback: label en waarde soms op dezelfde regel (bv. "Aantal: 2" of "Aantal  2")
+      var re=new RegExp('^'+lbl.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\s*[:\\-]?\\s+(.+)$','i');
+      var found=lines.find(function(l){return l!==lbl&&re.test(l);});
+      if(found){
+        var mm=found.match(re);
+        if(lbl==='Opmerkingen')obj.opmerkingen=mm[1].trim();
+        else obj[labelKey(lbl)]=mm[1].trim();
+      }
+      return;
+    }
+    if(li+1>=lines.length)return;
     if(lbl==='Opmerkingen'){
       var rest=lines.slice(li+1);
       var cut=rest.findIndex(function(l){return PROD_LABELS.indexOf(l)>-1||/^Product\s+\d+/i.test(l);});
