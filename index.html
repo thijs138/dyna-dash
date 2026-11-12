@@ -75,6 +75,8 @@ body{font-family:"Manrope",Arial,sans-serif;background:var(--bg);color:var(--dk)
 .kpi.ka::after{background:var(--or)}.kpi.kg2::after{background:var(--good)}
 .kpi.kb::after{background:var(--bl)}.kpi.kp::after{background:var(--pu)}.kpi.kr::after{background:var(--crit)}
 .kicon{position:absolute;top:13px;right:14px;font-size:16px;opacity:.45}
+.kvrow{display:flex;align-items:flex-end;gap:8px}
+.spark{width:54px;height:20px;flex-shrink:0;margin-bottom:2px}
 .klbl{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;max-width:calc(100% - 22px)}
 .kval{font-size:23px;font-weight:800;color:var(--dk);line-height:1.2;letter-spacing:-.3px}
 .ksub{font-size:10px;color:#bbb;margin-top:3px}
@@ -325,6 +327,7 @@ function autoLoadSheet(){
     })
     .then(function(rows){
       try{localStorage.setItem('rd_rows',JSON.stringify(rows.slice(0,3000)));}catch(e){}
+      S.prevRows=prevRows;
       S.data=buildDataset(rows,prevRows);
       S.lastLoad=new Date();
       if(btn)btn.classList.remove('spin');
@@ -592,12 +595,12 @@ function buildAllPages(D){
   addPage('ov',
     '<div class="sec">Totaal '+M[0]+' t/m '+lastM+'</div>'+
     '<div class="kg">'+
-    kpi('ka',fN(tN),'Totaal ingemeten',M.join(' + '))+
-    kpi('ka',fN(tB),'Totaal besteld','van '+fN(tN)+' metingen')+
-    kpi('kg2',tC+'%','Conversie totaal','alle maanden')+
-    kpi('',ef(tWi),'Waarde ingemeten','','font-size:18px')+
-    kpi('',ef(tWb),'Waarde besteld','','font-size:18px')+
-    kpi(lastD.conv<q1gem?'kr':'kg2','<span style="color:'+pHex(lastD.conv)+'">'+lastD.conv+'%</span>',lastM+' conversie',dh(lastD.conv,q1gem)+' vs Q1 gem')+
+    kpi('ka',fN(tN),'Totaal ingemeten',M.join(' + '),null,M.map(function(m){return MD[m].n;}))+
+    kpi('ka',fN(tB),'Totaal besteld','van '+fN(tN)+' metingen',null,M.map(function(m){return MD[m].b;}))+
+    kpi('kg2',tC+'%','Conversie totaal','alle maanden',null,M.map(function(m){return MD[m].conv;}))+
+    kpi('',ef(tWi),'Waarde ingemeten','','font-size:18px',M.map(function(m){return MD[m].wi;}))+
+    kpi('',ef(tWb),'Waarde besteld','','font-size:18px',M.map(function(m){return MD[m].wb;}))+
+    kpi(lastD.conv<q1gem?'kr':'kg2','<span style="color:'+pHex(lastD.conv)+'">'+lastD.conv+'%</span>',lastM+' conversie',dh(lastD.conv,q1gem)+' vs Q1 gem',null,M.map(function(m){return MD[m].conv;}))+
     '</div>'+
     (lastD.conv<q1gem?'<div class="ibox iwarn"><div class="it">&#9888;&#65039; '+lastM+' conversie '+lastD.conv+'% &mdash; '+r1(q1gem-lastD.conv)+' ppt onder Q1 gemiddelde ('+q1gem+'%)</div><p>Gerichte nabellen-opvolging gewenst.</p></div>':'')+
     '<div class="r2">'+
@@ -821,8 +824,23 @@ function buildAllPages(D){
   // init provincie na opbouw
   setTimeout(function(){selProv('Totaal',document.querySelector('.mb.active'));},150);
 }
-function kpi(cls,val,lbl,sub,vstyle){
-  return '<div class="kpi '+cls+'"><div class="kicon">'+kpiIcon(lbl)+'</div><div class="klbl">'+lbl+'</div><div class="kval"'+(vstyle?' style="'+vstyle+'"':'')+'>'+val+'</div>'+(sub?'<div class="ksub">'+sub+'</div>':'')+'</div>';
+function sparkSvg(vals){
+  if(!vals||vals.length<2)return'';
+  var w=54,h=20,pad=2;
+  var min=Math.min.apply(null,vals),max=Math.max.apply(null,vals);
+  var range=(max-min)||1;
+  var pts=vals.map(function(v,i){
+    var x=pad+i*(w-2*pad)/(vals.length-1);
+    var y=h-pad-((v-min)/range)*(h-2*pad);
+    return x.toFixed(1)+','+y.toFixed(1);
+  }).join(' ');
+  var col=vals[vals.length-1]>=vals[0]?'#0ca30c':'#d03b3b';
+  return '<svg class="spark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function kpi(cls,val,lbl,sub,vstyle,spark){
+  return '<div class="kpi '+cls+'"><div class="kicon">'+kpiIcon(lbl)+'</div><div class="klbl">'+lbl+'</div>'+
+    '<div class="kvrow"><div class="kval"'+(vstyle?' style="'+vstyle+'"':'')+'>'+val+'</div>'+(spark?sparkSvg(spark):'')+'</div>'+
+    (sub?'<div class="ksub">'+sub+'</div>':'')+'</div>';
 }
 // ── CHARTS ────────────────────────────────────────────────────────────────
 function mkChart(id,cfg){
@@ -1022,7 +1040,11 @@ function openMeetbon(ticketId){
       return fetch(FD_PROXY_BASE+'/ticket/'+encodeURIComponent(ticketId)+'/attachment/'+encodeURIComponent(att.id),{headers:{Authorization:'Bearer '+key}})
         .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status+' bij downloaden PDF');return r.arrayBuffer();})
         .then(function(buf){return parseMeetbon(buf);})
-        .then(function(parsed){parsed.ticketId=ticketId;parsed.fileName=att.name;showMeetbonModal('done',parsed);});
+        .then(function(parsed){
+          parsed.ticketId=ticketId;parsed.fileName=att.name;
+          parsed.afgeleideProvincie=enrichProvinceFromMeetbon(ticketId,parsed.adres);
+          showMeetbonModal('done',parsed);
+        });
     })
     .catch(function(err){showMeetbonModal('error',err.message);});
 }
@@ -1033,7 +1055,9 @@ function renderMeetbon(p){
     (h.datum?'<div><b>'+escapeHtml(h.datum)+'</b>datum meting</div>':'')+
     (h.aanvraagCode?'<div><b>'+escapeHtml(h.aanvraagCode)+'</b>meetservice-aanvraag</div>':'')+
     '<div><b>'+(p.producten?p.producten.length:0)+'</b>producten</div>'+
-    '</div>';
+    (p.adres&&p.adres.plaats?'<div><b>'+escapeHtml(p.adres.plaats)+' ('+escapeHtml(p.adres.postcode)+')</b>adres'+(p.afgeleideProvincie?' — '+escapeHtml(p.afgeleideProvincie):'')+'</div>':'')+
+    '</div>'+
+    (p.afgeleideProvincie?'<p class="unote" style="max-width:none;text-align:left;margin-bottom:10px">Provincie "'+escapeHtml(p.afgeleideProvincie)+'" automatisch afgeleid uit de postcode en aangevuld in de Provincie-tab (benadering, geen harde grens).</p>':'');
   var prodRows=(p.producten||[]).map(function(pr){
     return '<tr><td>'+escapeHtml(pr.nr)+'</td><td>'+escapeHtml(pr.aantal)+'</td><td>'+escapeHtml(pr.naam)+'</td><td>'+escapeHtml(pr.kleur)+'</td>'+
     '<td>'+escapeHtml(pr.breedte)+' &times; '+escapeHtml(pr.hoogte)+'</td><td>'+escapeHtml(pr.bediening)+'</td><td>'+escapeHtml(pr.systeem)+'</td>'+
@@ -1094,6 +1118,49 @@ function parseHeader(fullText){
   if(m2)out.aanvraagCode=m2[1].trim();
   return out;
 }
+// Adres staat op pagina 1 na de klantgegevens: straat+huisnr, dan "postcode plaats" aan elkaar.
+function parseAddress(pagesLines){
+  var page1=pagesLines[0]||[];
+  for(var i=1;i<page1.length;i++){
+    var m=page1[i].match(/^(\d{4})\s?([A-Z]{2})\s+(.+)$/);
+    if(m)return{straat:page1[i-1]||null,postcode:m[1]+' '+m[2],pc4:m[1],plaats:m[3].trim()};
+  }
+  return null;
+}
+// Benadering op basis van de eerste 4 cijfers van de postcode (PC4). Provinciegrenzen
+// volgen de postcode-indeling niet exact, dus bij grensgevallen kan dit afwijken —
+// gebruik dit als praktische aanvulling, niet als harde waarheid.
+var PC_PROV=[
+  {min:1000,max:1299,p:'Noord-Holland'},{min:1300,max:1339,p:'Flevoland'},{min:1340,max:1999,p:'Noord-Holland'},
+  {min:2000,max:2999,p:'Zuid-Holland'},{min:3000,max:3449,p:'Zuid-Holland'},{min:3450,max:3999,p:'Utrecht'},
+  {min:4000,max:4299,p:'Utrecht'},{min:4300,max:4699,p:'Zeeland'},{min:4700,max:5729,p:'Noord-Brabant'},
+  {min:5730,max:6499,p:'Limburg'},{min:6500,max:7399,p:'Gelderland'},{min:7400,max:7699,p:'Overijssel'},
+  {min:7700,max:7799,p:'Overijssel'},{min:7800,max:7999,p:'Drenthe'},{min:8000,max:8299,p:'Overijssel'},
+  {min:8300,max:8399,p:'Flevoland'},{min:8400,max:9299,p:'Friesland'},{min:9300,max:9599,p:'Drenthe'},
+  {min:9600,max:9999,p:'Groningen'}
+];
+function pc4ToProvince(pc4){
+  var n=parseInt(pc4,10);
+  if(isNaN(n))return null;
+  for(var i=0;i<PC_PROV.length;i++){if(n>=PC_PROV[i].min&&n<=PC_PROV[i].max)return PC_PROV[i].p;}
+  return null;
+}
+// Vult de provincie aan voor bellijst-rijen van dit ticket, alleen als er nog geen
+// (handmatig geüploade) provincie bekend is — die blijft leidend.
+function enrichProvinceFromMeetbon(ticketId,adres){
+  if(!S.data||!adres||!adres.pc4)return null;
+  var prov=pc4ToProvince(adres.pc4);
+  if(!prov)return null;
+  var changed=false;
+  S.data.rows.forEach(function(r){if(r.ticket===ticketId&&!r.prov){r.prov=prov;changed=true;}});
+  if(changed){
+    var activeBtn=document.querySelector('.tab.active'),activeId=activeBtn?activeBtn.getAttribute('data-id'):null;
+    S.data=buildDataset(S.data.rows,S.prevRows);
+    renderDashboard();
+    if(activeId){var btn=document.querySelector('.tab[data-id="'+activeId+'"]');if(btn)switchPage(activeId,btn);}
+  }
+  return prov;
+}
 function parseAanvullend(fullText){
   var heads=['Speciale wensen productie','Opmerkingen over de afspraak','Bijzonderheden voor montage'];
   var keys={'Speciale wensen productie':'wensen','Opmerkingen over de afspraak':'opmerkingenAfspraak','Bijzonderheden voor montage':'montage'};
@@ -1122,7 +1189,8 @@ function parseMeetbon(buf){
       return parseProductBlock(x.num,fullText.slice(x.idx,end));
     });
     var aanvullend=parseAanvullend(fullText);
-    return{header:header,producten:producten,aanvullend:aanvullend,raw:fullText};
+    var adres=parseAddress(pagesLines);
+    return{header:header,producten:producten,aanvullend:aanvullend,adres:adres,raw:fullText};
   });
 }
 // ── start: haal automatisch op bij openen ────────────────────────────────
