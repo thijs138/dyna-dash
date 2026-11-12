@@ -56,6 +56,10 @@ body{font-family:"Manrope",Arial,sans-serif;background:var(--bg);color:var(--dk)
 .tab.tb{color:var(--bl)}.tab.tb.active{color:var(--bl);border-left-color:var(--bl);background:#eaf2fc}
 .tab.tu{background:var(--or);color:var(--dk);border-radius:20px;margin:10px 16px 2px;padding:8px 14px;font-weight:700;border-left:none;text-align:center}
 .tab.tu:hover{background:#e08800}
+.monthsel-wrap{padding:10px 18px 14px;border-top:1px solid var(--bd);border-bottom:1px solid var(--bd);margin:2px 0}
+.monthsel-wrap label{display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#bbb;margin-bottom:5px}
+.monthsel{width:100%;padding:8px 10px;border:1.5px solid var(--bd);border-radius:8px;font-family:inherit;font-size:12.5px;color:var(--dk);background:var(--wh);cursor:pointer}
+.monthsel:focus{outline:none;border-color:var(--or)}
 .tab:hover:not(.tu):not(.active){background:#faf9f7;color:var(--dk)}
 .sidebar-ov{display:none}
 @media(max-width:900px){
@@ -154,6 +158,8 @@ details.rawtoggle summary{cursor:pointer;font-weight:600}
 .rlbar{background:#f2f1ee;border-radius:6px;height:10px;overflow:hidden}
 .rlfill{background:var(--or);height:100%;border-radius:6px}
 .rlval{font-weight:700;font-size:11px;color:#888;white-space:nowrap}
+.pibar{background:#fff;border:1px solid #e3eefb;border-radius:8px;height:8px;overflow:hidden}
+.pibarfill{background:var(--bl);height:100%;transition:width .3s}
 </style>
 </head>
 <body>
@@ -509,7 +515,7 @@ function renderDashboard(){
 // ── tabs ──────────────────────────────────────────────────────────────────
 function buildTabs(D){
   var bar=document.getElementById('tabBar');
-  var defs=[
+  var defsBefore=[
     {id:'ov',lbl:'&#128202; Overzicht',cls:''},
     {id:'adv',lbl:'&#128100; Adviseurs',cls:''},
     {id:'prov',lbl:'&#128506;&#65039; Provincie',cls:''},
@@ -517,23 +523,37 @@ function buildTabs(D){
     {id:'nab',lbl:'&#128222; Nabellen',cls:''},
     {id:'nab2',lbl:'&#127919; Nabellen detail',cls:'tg'}
   ];
-  D.months.forEach(function(m){defs.push({id:'m_'+m,lbl:'&#128995; '+m,cls:''}); });
-  if(D.NC.length)defs.push({id:'nc',lbl:'&#128338; Nieuwe best.',cls:'tb'});
+  var defsAfter=[];
   if(fdTargetMonths().filter(function(m){return D.months.indexOf(m)>-1;}).length){
-    defs.push({id:'fd',lbl:'&#128206; Meetbonnen',cls:''});
-    defs.push({id:'pi',lbl:'&#127912; Productinzichten',cls:''});
+    defsAfter.push({id:'fd',lbl:'&#128206; Meetbonnen',cls:''});
+    defsAfter.push({id:'pi',lbl:'&#127912; Productinzichten',cls:''});
   }
-  defs.push({id:'dl',lbl:'&#8659;&#65039; Downloads',cls:''});
-  defs.push({id:'up',lbl:'&#8679; Nieuw bestand',cls:'tu'});
+  defsAfter.push({id:'dl',lbl:'&#8659;&#65039; Downloads',cls:''});
+  defsAfter.push({id:'up',lbl:'&#8679; Nieuw bestand',cls:'tu'});
   bar.innerHTML='';
-  defs.forEach(function(t,i){
+  function renderBtn(t,isFirst){
     var btn=document.createElement('button');
-    btn.className='tab '+(t.cls)+(i===0?' active':'');
+    btn.className='tab '+(t.cls)+(isFirst?' active':'');
     btn.innerHTML=t.lbl;
     btn.setAttribute('data-id',t.id);
     btn.onclick=function(){switchPage(t.id,btn);};
     bar.appendChild(btn);
-  });
+  }
+  defsBefore.forEach(function(t,i){renderBtn(t,i===0);});
+  // maand-detail: één dropdown i.p.v. een los tabblad per maand
+  if(D.months.length){
+    var wrap=document.createElement('div');
+    wrap.className='monthsel-wrap';
+    wrap.innerHTML='<label for="monthSelect">Per maand</label>'+
+      '<select id="monthSelect" class="monthsel"><option value="">&mdash; kies een maand &mdash;</option>'+
+      D.months.map(function(m){return '<option value="m_'+m+'">'+m+'</option>';}).join('')+
+      '</select>';
+    bar.appendChild(wrap);
+    wrap.querySelector('select').addEventListener('change',function(){
+      if(this.value)switchPage(this.value,null);
+    });
+  }
+  defsAfter.forEach(function(t){renderBtn(t,false);});
 }
 function toggleSidebar(){
   var d=document.getElementById('dashboard');
@@ -559,13 +579,14 @@ function switchPage(id,el){
   var pg=document.getElementById('pg_'+id);
   if(pg){pg.classList.add('active');}
   if(el){el.classList.add('active');}
+  var msel=document.getElementById('monthSelect');
+  if(msel)msel.value=(id.indexOf('m_')===0)?id:'';
   // init charts for this page after DOM is visible
   setTimeout(function(){
     if(!S.data)return;
     var D=S.data;
     if(id==='nab2'){initNab2Charts(D);return;}
-    if(id==='nc'){initNcCharts(D);return;}
-    if(id==='pi'){renderProductInsights();return;}
+    if(id==='pi'){renderProductInsights();startBulkMeetbonFetch();return;}
     // month page
     D.months.forEach(function(m){
       if(id==='m_'+m){initMonthCharts(D,m);}
@@ -786,28 +807,6 @@ function buildAllPages(D){
     var pg=document.getElementById('pg_m_'+m);
     if(pg){pg.setAttribute('data-cadv',cAdvId);pg.setAttribute('data-cprov',cProvId);pg.setAttribute('data-wrap',wrapId);}
   });
-  // ── NIEUWE BESTELLINGEN ────────────────────────────────────────────────
-  if(NC.length){
-    var ncMail=NC.filter(function(x){return x.contact==='Mail';}).length;
-    var ncBel=NC.filter(function(x){return x.contact==='Bellen';}).length;
-    var ncW=NC.reduce(function(s,x){return s+x.waarde;},0);
-    var ncR=NC.map(function(x){
-      var b=x.contact==='Mail'?'<span style="background:#e3f2fd;color:#1565c0;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:700">&#128231; Mail</span>':x.contact==='Bellen'?'<span style="background:#e8f5e9;color:#1b5e20;padding:2px 7px;border-radius:20px;font-size:11px;font-weight:700">&#128222; Bellen</span>':'<span style="color:#aaa">—</span>';
-      return '<tr><td><strong>'+x.naam+'</strong></td><td>'+x.maand+'</td><td>'+x.adv+'</td><td>'+ef(x.waarde)+'</td><td>'+b+'</td><td style="font-size:11px;color:#666">'+(x.reden||'—')+'</td></tr>';
-    }).join('');
-    var ncAd={};NC.forEach(function(x){if(!ncAd[x.adv])ncAd[x.adv]={n:0,w:0,mail:0,bel:0};ncAd[x.adv].n++;ncAd[x.adv].w+=x.waarde;if(x.contact==='Mail')ncAd[x.adv].mail++;if(x.contact==='Bellen')ncAd[x.adv].bel++;});
-    var ncAR=Object.entries(ncAd).sort(function(a,b){return b[1].n-a[1].n;}).map(function(e){var a=e[0],v=e[1];return '<tr><td><strong>'+a+'</strong></td><td>'+v.n+'</td><td>'+ef(v.w)+'</td><td>'+(v.mail?'&#128231; '+v.mail:'—')+'</td><td>'+(v.bel?'&#128222; '+v.bel:'—')+'</td></tr>';}).join('');
-    addPage('nc',
-      '<div class="ncb"><div class="ico">&#128338;</div><div class="txt"><strong>'+NC.length+' nieuwe bestellingen t.o.v. vorige upload</strong>Klanten die eerder NIET besteld hadden en nu WEL.<br>Extra omzet: <strong>'+ef(ncW)+'</strong> &nbsp;&middot;&nbsp; Mail: <strong>'+ncMail+'x</strong> &nbsp;&middot;&nbsp; Bellen: <strong>'+ncBel+'x</strong></div></div>'+
-      '<div class="kg">'+kpi('kb',NC.length.toString(),'Nieuwe best.','vs vorige upload')+kpi('kb',ef(ncW),'Extra omzet','')+kpi('kg2',ncMail+'x','Via mail','')+kpi('kg2',ncBel+'x','Via bellen','')+'</div>'+
-      '<div class="sec sbl">Alle nieuwe bestellingen</div>'+
-      '<div class="scr"><table><thead><tr><th class="hb">Klant</th><th class="hb">Maand</th><th class="hb">Adviseur</th><th class="hb">Waarde</th><th class="hb">Via</th><th class="hb">Reden</th></tr></thead><tbody>'+ncR+'</tbody></table></div>'+
-      '<div class="r2"><div class="cc"><div class="cct">Mail vs bellen</div><div style="height:210px"><canvas id="cNcMeth"></canvas></div></div><div class="cc"><div class="cct">Per maand</div><div style="height:210px"><canvas id="cNcMnd"></canvas></div></div></div>'+
-      '<div class="sec sbl">Per adviseur</div>'+
-      '<div class="scr"><table><thead><tr><th class="hb">Adviseur</th><th class="hb">Nieuwe best.</th><th class="hb">Extra waarde</th><th class="hb">Mail</th><th class="hb">Bellen</th></tr></thead><tbody>'+ncAR+'</tbody></table></div>'
-    );
-    window._ncCache={NC:NC,ncMail:ncMail,ncBel:ncBel,M:M};
-  }
   // ── MEETBONNEN (Freshdesk, read-only) ───────────────────────────────────
   var fdM=fdTargetMonths().filter(function(m){return D.months.indexOf(m)>-1;});
   if(fdM.length){
@@ -821,10 +820,11 @@ function buildAllPages(D){
     renderFdTable();
     addPage('pi',
       '<div class="sec">Productinzichten &mdash; '+fdM.join(' &amp; ')+'</div>'+
-      '<div class="ibox ibl"><div class="it">&#8505;&#65039; Opgebouwd uit bekeken meetbonnen</div><p>Toont geaggregeerde productdata uit de meetbonnen die je al via de Meetbonnen-tab hebt bekeken &mdash; geen extra Freshdesk-aanroepen. Bekijk meer meetbonnen om dit overzicht aan te vullen.</p></div>'+
+      '<div class="ibox ibl"><div class="it">&#8505;&#65039; Automatisch opgebouwd uit meetbonnen</div><p>Haalt op de achtergrond, in kleine batches, alle meetbonnen voor '+fdM.join(' + ')+' op en toont geaggregeerde productdata. Alleen GET-verzoeken, zelfde beperkte scope als de Meetbonnen-tab.</p></div>'+
       '<div id="piRoot"></div>'
     );
     renderProductInsights();
+    startBulkMeetbonFetch();
   }
   // ── DOWNLOADS ──────────────────────────────────────────────────────────
   var dlB=AN.map(function(a){return '<div class="db" onclick="dlAdv(\''+a+'\')"><div style="font-size:22px">&#128196;</div><div>'+a+'</div></div>';}).join('');
@@ -898,13 +898,6 @@ function initNab2Charts(D){
     {label:'Bellen %',data:AN.map(function(a){var arr=M.filter(function(m){return AD[a][m]&&AD[a][m].bellen>0;});return arr.length?r1(arr.reduce(function(s,m){return s+AD[a][m].belConv*AD[a][m].bellen;},0)/arr.reduce(function(s,m){return s+AD[a][m].bellen;},0)):0;}),backgroundColor:O,borderRadius:3}
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:11,font:{size:11}}}},scales:{x:{ticks:{autoSkip:false}},y:{min:0,max:50,grid:{color:'#f0f0f0'},ticks:{callback:function(v){return v+'%';}}}}}});
   mkChart('cSnelheid',{type:'bar',data:{labels:AN,datasets:[{data:AN.map(function(a){var arr=M.filter(function(m){return AD[a][m]&&AD[a][m].gemD>0;});return arr.length?r1(arr.reduce(function(s,m){return s+AD[a][m].gemD;},0)/arr.length):0;}),backgroundColor:PU,borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return ctx.raw+' dagen';}}}},scales:{x:{ticks:{autoSkip:false}},y:{grid:{color:'#f0f0f0'}}}}});
-}
-function initNcCharts(D){
-  if(!window._ncCache)return;
-  var nc=window._ncCache;
-  mkChart('cNcMeth',{type:'doughnut',data:{labels:['📧 Mail ('+nc.ncMail+'x)','📞 Bellen ('+nc.ncBel+'x)'],datasets:[{data:[nc.ncMail,nc.ncBel],backgroundColor:[BL,O],borderWidth:3,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:12},boxWidth:12}}}}});
-  var nm={};nc.M.forEach(function(m){nm[m]=0;});nc.NC.forEach(function(x){if(nm[x.maand]!==undefined)nm[x.maand]++;});
-  mkChart('cNcMnd',{type:'bar',data:{labels:Object.keys(nm),datasets:[{data:Object.values(nm),backgroundColor:BL,borderRadius:6}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,ticks:{stepSize:1},grid:{color:'#f0f0f0'}}}}});
 }
 function initMonthCharts(D,m){
   var Dx=D||S.data;if(!Dx)return;
@@ -1031,6 +1024,7 @@ function saveFdKey(){
   var v=document.getElementById('fdKeyInput').value.trim();
   try{if(v)localStorage.setItem(FD_KEY_LS,v);else localStorage.removeItem(FD_KEY_LS);}catch(e){}
   closeSettings();
+  if(v)startBulkMeetbonFetch();
 }
 // ── Freshdesk meetbon-koppeling (read-only, client-side) ────────────────
 function fdTargetMonths(){var now=new Date();return[MORD[(now.getMonth()+11)%12],MORD[now.getMonth()]];}
@@ -1054,24 +1048,54 @@ function rankList(entries,max){
     return '<div class="rlrow"><div class="rlname">'+escapeHtml(e[0])+'</div><div class="rlbar"><div class="rlfill" style="width:'+pct+'%"></div></div><div class="rlval">'+e[1]+'&times;</div></div>';
   }).join('')+'</div>';
 }
+function buildAdviseurVariatie(entries){
+  var byAdv={};
+  entries.forEach(function(x){
+    var a=x.adv||'Onbekend';
+    if(!byAdv[a])byAdv[a]={naam:{},kleur:{},systeem:{},n:0};
+    byAdv[a].n++;
+    if(x.p.naam)byAdv[a].naam[x.p.naam]=1;
+    if(x.p.kleur)byAdv[a].kleur[x.p.kleur]=1;
+    if(x.p.systeem)byAdv[a].systeem[x.p.systeem]=1;
+  });
+  return Object.keys(byAdv).map(function(a){
+    var d=byAdv[a];
+    return{adv:a,n:d.n,uNaam:Object.keys(d.naam).length,uKleur:Object.keys(d.kleur).length,uSysteem:Object.keys(d.systeem).length};
+  }).sort(function(a,b){return b.uNaam-a.uNaam;});
+}
 function renderProductInsights(){
   var root=document.getElementById('piRoot');
   if(!root)return;
-  var cache=S.meetbonCache||{};
+  ensureMeetbonCache();
+  var cache=S.meetbonCache;
   var tickets=Object.keys(cache);
+  var key=getFdKey();
+  var progress=(_bulkFetchState.total>0)?(
+    '<div class="ibox ibl" style="margin-bottom:16px"><div class="it">'+(_bulkFetchState.running?'&#8987; Meetbonnen ophalen op de achtergrond…':'&#9989; Achtergrond-ophalen klaar')+'</div>'+
+    '<div class="pibar"><div class="pibarfill" id="piProgressBar" style="width:'+(_bulkFetchState.total?Math.round(_bulkFetchState.done/_bulkFetchState.total*100):0)+'%"></div></div>'+
+    '<p id="piProgressTxt" style="margin-top:6px">'+(_bulkFetchState.running?_bulkFetchState.done+' van '+_bulkFetchState.total+' meetbonnen opgehaald…':'Klaar: '+_bulkFetchState.done+' van '+_bulkFetchState.total+' opgehaald')+(_bulkFetchState.errors?' ('+_bulkFetchState.errors+' mislukt/overgeslagen)':'')+'</p></div>'
+  ):'';
   if(!tickets.length){
-    root.innerHTML='<div class="ibox"><div class="it">&#128202; Nog geen productdata</div><p>Productinzichten worden opgebouwd uit meetbonnen die je al hebt bekeken. Ga naar de <strong>Meetbonnen</strong>-tab en klik bij een paar orders op &ldquo;Bekijk meetbon&rdquo; om hier inzichten te zien verschijnen &mdash; dit kost geen extra Freshdesk-aanroepen.</p></div>';
+    root.innerHTML=progress+'<div class="ibox"><div class="it">&#128202; Nog geen productdata</div><p>'+
+      (key?'Meetbonnen voor de huidige en vorige maand worden automatisch op de achtergrond opgehaald — dit kan bij veel orders even duren.':'Stel eerst een Freshdesk API-key in bij &#9881;&#65039; Instellingen; daarna worden meetbonnen automatisch opgehaald.')+
+      '</p></div>';
     return;
   }
-  var allProd=[];
-  tickets.forEach(function(t){(cache[t].producten||[]).forEach(function(p){allProd.push(p);});});
+  var entries=[];
+  var ticketAdvMap={};
+  (window._fdRows||[]).forEach(function(r){if(r.ticket)ticketAdvMap[r.ticket]=r.adv;});
+  tickets.forEach(function(t){
+    var adv=ticketAdvMap[t]||(cache[t].header&&cache[t].header.adviseur)||'Onbekend';
+    (cache[t].producten||[]).forEach(function(p){entries.push({adv:adv,p:p});});
+  });
+  var allProd=entries.map(function(x){return x.p;});
   if(!allProd.length){
-    root.innerHTML='<div class="ibox iwarn"><div class="it">&#9888;&#65039; Geen producten herkend</div><p>Er '+(tickets.length===1?'is 1 meetbon':'zijn '+tickets.length+' meetbonnen')+' bekeken, maar er kon geen productdata uit worden herkend.</p></div>';
+    root.innerHTML=progress+'<div class="ibox iwarn"><div class="it">&#9888;&#65039; Geen producten herkend</div><p>Er '+(tickets.length===1?'is 1 meetbon':'zijn '+tickets.length+' meetbonnen')+' opgehaald, maar er kon geen productdata uit worden herkend.</p></div>';
     return;
   }
-  function tally(key){
+  function tally(key2){
     var m={};
-    allProd.forEach(function(p){var v=(p[key]||'').trim();if(!v)return;m[v]=(m[v]||0)+1;});
+    allProd.forEach(function(p){var v=(p[key2]||'').trim();if(!v)return;m[v]=(m[v]||0)+1;});
     return Object.entries(m).sort(function(a,b){return b[1]-a[1];});
   }
   var naamT=tally('naam'),kleurT=tally('kleur'),bedT=tally('bediening'),sysT=tally('systeem');
@@ -1080,9 +1104,14 @@ function renderProductInsights(){
   var hoogtes=allProd.map(function(p){return numFrom(p.hoogte);}).filter(function(v){return v!==null;});
   var avgB=breedtes.length?Math.round(breedtes.reduce(function(a,b){return a+b;},0)/breedtes.length):null;
   var avgH=hoogtes.length?Math.round(hoogtes.reduce(function(a,b){return a+b;},0)/hoogtes.length):null;
-  root.innerHTML=
+  var advVar=buildAdviseurVariatie(entries);
+  var advRows=advVar.map(function(d){
+    return '<tr><td><strong>'+escapeHtml(d.adv)+'</strong></td><td>'+d.n+'</td><td>'+d.uNaam+'</td><td>'+d.uKleur+'</td><td>'+d.uSysteem+'</td></tr>';
+  }).join('');
+  var advTable=advVar.length?('<div class="sec" style="margin-top:4px">Variatie per adviseur</div><div class="scr"><table><thead><tr><th>Adviseur</th><th>Producten</th><th>Unieke producttypes</th><th>Unieke kleuren</th><th>Unieke systemen</th></tr></thead><tbody>'+advRows+'</tbody></table></div>'):'';
+  root.innerHTML=progress+
     '<div class="kg">'+
-    kpi('ka',tickets.length.toString(),'Meetbonnen bekeken','huidige + vorige maand')+
+    kpi('ka',tickets.length.toString(),'Meetbonnen opgehaald','huidige + vorige maand')+
     kpi('ka',allProd.length.toString(),'Producten totaal','')+
     kpi('',avgPerOrder.toString(),'Gem. producten/order','')+
     (avgB&&avgH?kpi('',avgB+' &times; '+avgH+' cm','Gem. afmeting',''):'')+
@@ -1094,7 +1123,8 @@ function renderProductInsights(){
     '<div class="r2">'+
     '<div class="cc"><div class="cct">Type bediening</div>'+rankList(bedT)+'</div>'+
     '<div class="cc"><div class="cct">Type systeem</div>'+rankList(sysT)+'</div>'+
-    '</div>';
+    '</div>'+
+    advTable;
   if(kleurT.length)mkChart('cPiKleur',{type:'doughnut',data:{labels:kleurT.slice(0,8).map(function(x){return x[0];}),datasets:[{data:kleurT.slice(0,8).map(function(x){return x[1];}),backgroundColor:CAT,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:10}}}}});
 }
 var FD_SORT={dir:0};
@@ -1127,29 +1157,126 @@ function toggleFdSort(){
   FD_SORT.dir=FD_SORT.dir===1?-1:1;
   renderFdTable();
 }
-function openMeetbon(ticketId){
+// ── gedeelde fetch (gebruikt door losse "Bekijk meetbon" en de bulk-ophaal) ──
+function isValidTicketId(t){return /^\d+$/.test(String(t==null?'':t).trim());}
+function fetchMeetbonForTicket(ticketId){
   var key=getFdKey();
-  if(!key){showMeetbonModal('error','Nog geen Freshdesk API-key ingesteld. Open ⚙️ Instellingen om er een op te slaan.');return;}
-  showMeetbonModal('loading','Meetbon ophalen voor ticket '+ticketId+'…');
-  fetch(FD_PROXY_BASE+'/ticket/'+encodeURIComponent(ticketId)+'/meetbon',{headers:{Authorization:'Bearer '+key}})
-    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status+' bij ophalen bijlage-lijst');return r.json();})
+  if(!key)return Promise.reject(new Error('Geen Freshdesk API-key ingesteld'));
+  if(!isValidTicketId(ticketId))return Promise.reject(new Error('INVALID_TICKET'));
+  return fetch(FD_PROXY_BASE+'/ticket/'+encodeURIComponent(ticketId)+'/meetbon',{headers:{Authorization:'Bearer '+key}})
+    .then(function(r){
+      if(r.status===429)throw new Error('429');
+      if(r.status===404)throw new Error('404');
+      if(!r.ok)throw new Error('HTTP '+r.status+' bij ophalen bijlage-lijst');
+      return r.json();
+    })
     .then(function(info){
       var att=(info.attachments||[]).find(function(a){return /_intern/i.test(a.name||'');});
       if(!att)throw new Error('Geen "_intern" meetbon gevonden voor dit ticket.');
       return fetch(FD_PROXY_BASE+'/ticket/'+encodeURIComponent(ticketId)+'/attachment/'+encodeURIComponent(att.id),{headers:{Authorization:'Bearer '+key}})
-        .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status+' bij downloaden PDF');return r.arrayBuffer();})
+        .then(function(r){
+          if(r.status===429)throw new Error('429');
+          if(r.status===404)throw new Error('404');
+          if(!r.ok)throw new Error('HTTP '+r.status+' bij downloaden PDF');
+          return r.arrayBuffer();
+        })
         .then(function(buf){return parseMeetbon(buf);})
         .then(function(parsed){
           parsed.ticketId=ticketId;parsed.fileName=att.name;
-          parsed.afgeleideProvincie=enrichProvinceFromMeetbon(ticketId,parsed.adres);
-          S.meetbonCache=S.meetbonCache||{};
-          S.meetbonCache[ticketId]=parsed;
-          var piPage=document.getElementById('pg_pi');
-          if(piPage&&piPage.classList.contains('active'))renderProductInsights();
-          showMeetbonModal('done',parsed);
+          return parsed;
         });
+    });
+}
+function friendlyFetchError(msg){
+  if(msg==='INVALID_TICKET')return'Geen geldig ticketnummer voor deze rij.';
+  if(msg==='404')return'Ticket niet gevonden in Freshdesk (mogelijk verwijderd).';
+  if(msg==='429')return'Freshdesk/de proxy geeft aan dat er te veel verzoeken zijn gedaan (HTTP 429). Probeer het zo weer.';
+  return msg;
+}
+function fdCacheLSKey(){return 'rd_meetbon_cache_v1';}
+function loadMeetbonCacheLS(){try{var s=sessionStorage.getItem(fdCacheLSKey());return s?JSON.parse(s):{};}catch(e){return{};}}
+function saveMeetbonCacheLS(){try{sessionStorage.setItem(fdCacheLSKey(),JSON.stringify(S.meetbonCache||{}));}catch(e){}}
+function ensureMeetbonCache(){if(!S.meetbonCache)S.meetbonCache=loadMeetbonCacheLS();return S.meetbonCache;}
+function cacheMeetbon(ticketId,parsed){
+  ensureMeetbonCache();
+  S.meetbonCache[ticketId]=parsed;
+  saveMeetbonCacheLS();
+  var piPage=document.getElementById('pg_pi');
+  if(piPage&&piPage.classList.contains('active'))renderProductInsights();
+}
+function openMeetbon(ticketId){
+  var key=getFdKey();
+  if(!key){showMeetbonModal('error','Nog geen Freshdesk API-key ingesteld. Open ⚙️ Instellingen om er een op te slaan.');return;}
+  ensureMeetbonCache();
+  if(S.meetbonCache[ticketId]){
+    var cached=S.meetbonCache[ticketId];
+    cached.afgeleideProvincie=enrichProvinceFromMeetbon(ticketId,cached.adres);
+    showMeetbonModal('done',cached);
+    return;
+  }
+  showMeetbonModal('loading','Meetbon ophalen voor ticket '+ticketId+'…');
+  fetchMeetbonForTicket(ticketId)
+    .then(function(parsed){
+      parsed.afgeleideProvincie=enrichProvinceFromMeetbon(ticketId,parsed.adres);
+      cacheMeetbon(ticketId,parsed);
+      showMeetbonModal('done',parsed);
     })
-    .catch(function(err){showMeetbonModal('error',err.message);});
+    .catch(function(err){showMeetbonModal('error',friendlyFetchError(err.message));});
+}
+// ── bulk-ophalen op de achtergrond (batching + backoff, read-only) ──────
+var BULK_CONCURRENCY=4;
+var _bulkFetchState={running:false,done:0,total:0,errors:0};
+var _bulkBackoffUntil=0;
+function startBulkMeetbonFetch(){
+  if(_bulkFetchState.running)return;
+  if(!getFdKey())return;
+  ensureMeetbonCache();
+  var allTickets=(window._fdRows||[]).map(function(r){return r.ticket;}).filter(Boolean);
+  allTickets=allTickets.filter(function(t,i){return allTickets.indexOf(t)===i;});
+  var todo=allTickets.filter(function(t){return isValidTicketId(t)&&!S.meetbonCache[t];});
+  if(!todo.length)return;
+  _bulkFetchState={running:true,done:0,total:todo.length,errors:0};
+  var idx=0,activeWorkers=0;
+  function renderIfActive(){var pg=document.getElementById('pg_pi');if(pg&&pg.classList.contains('active'))updatePiProgress();}
+  function next(){
+    if(idx>=todo.length){
+      activeWorkers--;
+      if(activeWorkers<=0){_bulkFetchState.running=false;renderIfActive();if(document.getElementById('pg_pi')&&document.getElementById('pg_pi').classList.contains('active'))renderProductInsights();}
+      return;
+    }
+    var ticketId=todo[idx++];
+    var wait=Math.max(0,_bulkBackoffUntil-Date.now());
+    setTimeout(function(){
+      fetchMeetbonForTicket(ticketId)
+        .then(function(parsed){cacheMeetbonSilent(ticketId,parsed);})
+        .catch(function(err){
+          _bulkFetchState.errors++;
+          if(err&&err.message==='429')_bulkBackoffUntil=Date.now()+5000;
+        })
+        .then(function(){
+          _bulkFetchState.done++;
+          renderIfActive();
+          next();
+        });
+    },wait);
+  }
+  var starters=Math.min(BULK_CONCURRENCY,todo.length);
+  activeWorkers=starters;
+  for(var i=0;i<starters;i++)next();
+}
+// zelfde als cacheMeetbon, maar zonder meteen de hele pagina te her-renderen (voorkomt
+// dat de kleuren-donut 100+ keer per bulk-run wordt afgebroken/opnieuw opgebouwd)
+function cacheMeetbonSilent(ticketId,parsed){
+  ensureMeetbonCache();
+  S.meetbonCache[ticketId]=parsed;
+  saveMeetbonCacheLS();
+}
+function updatePiProgress(){
+  var bar=document.getElementById('piProgressBar'),txt=document.getElementById('piProgressTxt');
+  if(!bar||!txt)return;
+  var pct=_bulkFetchState.total?Math.round(_bulkFetchState.done/_bulkFetchState.total*100):0;
+  bar.style.width=pct+'%';
+  txt.textContent=(_bulkFetchState.running?_bulkFetchState.done+' van '+_bulkFetchState.total+' meetbonnen opgehaald…':'Klaar: '+_bulkFetchState.done+' van '+_bulkFetchState.total+' opgehaald')+(_bulkFetchState.errors?' ('+_bulkFetchState.errors+' mislukt/overgeslagen)':'');
 }
 function renderMeetbon(p){
   var h=p.header||{};
