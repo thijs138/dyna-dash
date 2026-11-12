@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 :root{--or:#F59901;--dk:#2D2D2D;--lt:#F9CD92;--pu:#9c27b0;--bl:#1565c0;--gr:#27ae60;--rd:#e74c3c;--bg:#F9F7F4;--wh:#fff;--bd:#eee;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -42,7 +43,8 @@ body{font-family:"DM Sans",Arial,sans-serif;background:var(--bg);color:var(--dk)
 .uperr{color:var(--rd);font-size:12px;background:#fdf0f0;border:1px solid #fbb;border-radius:8px;padding:10px 14px;max-width:720px;text-align:center;display:none}
 .unote{font-size:11px;color:#bbb;text-align:center;max-width:520px;line-height:1.8}
 #dashboard{display:none}
-.tabs{background:var(--wh);border-bottom:1.5px solid var(--bd);display:flex;overflow-x:auto;padding:0 16px}
+.tabs{background:var(--wh);border-bottom:1.5px solid var(--bd);display:flex;overflow-x:auto;padding:0 16px;position:sticky;top:0;z-index:10;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.cc{box-shadow:0 1px 2px rgba(0,0,0,.03)}
 .tab{padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;border-bottom:2.5px solid transparent;color:#999;white-space:nowrap;font-family:inherit;transition:color .15s}
 .tab.active{color:var(--or);border-bottom-color:var(--or)}
 .tab.tg{color:var(--gr)}.tab.tg.active{color:var(--gr);border-bottom-color:var(--gr)}
@@ -54,7 +56,8 @@ body{font-family:"DM Sans",Arial,sans-serif;background:var(--bg);color:var(--dk)
 .sec::before{content:"";display:block;width:3px;height:13px;background:var(--or);border-radius:2px}
 .sec.sbl::before{background:var(--bl)}.sec.spu::before{background:var(--pu)}.sec.sgr::before{background:var(--gr)}
 .kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:11px;margin-bottom:20px}
-.kpi{background:var(--wh);border-radius:11px;padding:14px 16px;border:1px solid var(--bd);position:relative;overflow:hidden}
+.kpi{background:var(--wh);border-radius:11px;padding:14px 16px;border:1px solid var(--bd);position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.03);transition:box-shadow .15s,transform .15s}
+.kpi:hover{box-shadow:0 4px 14px rgba(0,0,0,.07);transform:translateY(-1px)}
 .kpi::after{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--bd)}
 .kpi.ka::after{background:var(--or)}.kpi.kg2::after{background:var(--gr)}
 .kpi.kb::after{background:var(--bl)}.kpi.kp::after{background:var(--pu)}.kpi.kr::after{background:var(--rd)}
@@ -100,21 +103,52 @@ tbody td{padding:6px 9px;border-bottom:1px solid #f2f2f2}
 .dbm{background:var(--or);color:var(--dk);border:none;padding:10px 22px;border-radius:24px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;margin-right:8px;margin-bottom:8px}
 .dbm:hover{background:#e08800}
 @media(max-width:680px){.r2{grid-template-columns:1fr}.ugrid{grid-template-columns:1fr}.page{padding:12px}}
+.lastupd{color:#777;font-size:11px}
+.hdrbtn{background:none;border:1.5px solid #555;color:#ccc;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:inherit}
+.hdrbtn:hover{border-color:var(--or);color:var(--or)}
+.hdrbtn.spin{animation:spin .8s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.spinner{width:30px;height:30px;border:3px solid var(--bd);border-top-color:var(--or);border-radius:50%;animation:spin .8s linear infinite}
+.autoload{display:flex;flex-direction:column;align-items:center;gap:14px;padding:30px 0}
+.modal-ov{position:fixed;inset:0;background:rgba(20,20,20,.5);display:flex;align-items:flex-start;justify-content:center;z-index:80;padding:40px 16px;overflow-y:auto}
+.modal{background:var(--wh);border-radius:14px;padding:24px 26px;max-width:680px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.modal-h{display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:700;margin-bottom:16px}
+.modal-x{background:none;border:none;font-size:20px;cursor:pointer;color:#999;line-height:1}
+.modal-x:hover{color:var(--dk)}
+.mlbl{display:block;font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.minput{width:100%;padding:10px 12px;border:1.5px solid var(--bd);border-radius:8px;font-family:inherit;font-size:13px;margin-bottom:4px}
+.minput:focus{outline:none;border-color:var(--or)}
+.pdftext{white-space:pre-wrap;font-family:"DM Mono",monospace;font-size:11px;max-height:40vh;overflow:auto;background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px;margin-top:6px}
+.mbhdr{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:14px;padding:12px 14px;background:#fff8ec;border-radius:10px;font-size:12px}
+.mbhdr b{display:block;font-size:13px}
+.prodtbl{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:14px}
+.prodtbl th{background:var(--dk);color:#fff;padding:6px 8px;text-align:left;font-weight:500}
+.prodtbl td{padding:6px 8px;border-bottom:1px solid #f2f2f2}
+.prodtbl tr:nth-child(even){background:#fafafa}
+.aanv{background:#f9f9f9;border-left:3px solid var(--or);border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;font-size:12px;line-height:1.5}
+.aanv b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#999;margin-bottom:2px}
+details.rawtoggle{margin-top:10px;font-size:11px;color:#999}
+details.rawtoggle summary{cursor:pointer;font-weight:600}
 </style>
 </head>
 <body>
 <div class="hdr">
   <div class="brand">raamdecoratie.com</div>
-  <div style="display:flex;gap:8px;align-items:center">
-    <div class="sw"><div class="sd" id="sd"></div><span id="slbl">Geen data geladen</span></div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <div class="sw"><div class="sd" id="sd"></div><span id="slbl">Geen data geladen</span><span class="lastupd" id="lastUpd"></span></div>
     <span class="bdg bdg-or" id="hdrP" style="display:none"></span>
+    <button class="hdrbtn" id="refreshBtn" onclick="autoLoadSheet()" title="Vernieuw vanuit Google Sheet">&#8635;</button>
+    <button class="hdrbtn" onclick="openSettings()" title="Instellingen">&#9881;</button>
   </div>
 </div>
 <div id="upload-screen">
   <div class="uh2">&#128202; Sales Dashboard</div>
-  <div class="up">Upload je bellijst en provincie-bestand. Nieuwe maanden (Mei, Juni etc.) worden automatisch verwerkt.</div>
+  <div class="up" id="autoLoadMsg">Bellijst wordt automatisch opgehaald uit Google Sheets&#8230;</div>
+  <div class="autoload" id="autoLoadBox"><div class="spinner"></div></div>
+  <div class="uperr" id="autoLoadErr"></div>
+  <div id="manualBlock" style="display:none;flex-direction:column;align-items:center;gap:20px;width:100%">
   <div class="steps">
-    <h3>Hoe werkt het?</h3>
+    <h3>Handmatig uploaden (fallback)</h3>
     <div class="step"><div class="stn">1</div><div>Upload je <strong>bellijst XLSX</strong> &mdash; &#233;&#233;n bestand met tabbladen per maand (Januari 2026, Februari 2026 etc.) of meerdere bestanden</div></div>
     <div class="step"><div class="stn">2</div><div>Upload het <strong>provincie-bestand XLSX</strong> &mdash; kolom A = ordernummer, kolom B = provincie, per maand-tabblad (jan, feb, mrt, apr etc.)</div></div>
     <div class="step"><div class="stn">3</div><div>Klik <strong>Verwerk</strong> &mdash; alle maanden, grafieken en tabellen worden automatisch geladen</div></div>
@@ -139,11 +173,33 @@ tbody td{padding:6px 9px;border-bottom:1px solid #f2f2f2}
   <div class="upbar" id="upbar"><div class="upfill" id="upfill"></div></div>
   <div class="uperr" id="uperr"></div>
   <button class="bgo" id="bgo" onclick="processUpload()" disabled>Verwerk bestanden &#8594;</button>
+  </div>
   <div class="unote">Kevin wordt automatisch uitgefilterd &bull; Belgische provincies worden samengevoegd als &ldquo;Belgi&#235;&rdquo;</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+    <button class="mb" onclick="autoLoadSheet()">&#8635; Opnieuw ophalen uit Sheet</button>
+    <button class="mb" id="showManualBtn" onclick="showManual()">&#8679; Handmatig XLSX uploaden</button>
+  </div>
 </div>
 <div id="dashboard">
   <div class="tabs" id="tabBar"></div>
   <div id="pages"></div>
+</div>
+<div id="settingsModal" class="modal-ov" style="display:none" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <div class="modal-h">&#9881;&#65039; Instellingen <button class="modal-x" onclick="closeSettings()">&times;</button></div>
+    <label class="mlbl">Google Sheet (bellijst)</label>
+    <div class="unote" style="text-align:left;margin:0 0 14px;max-width:none">Wordt automatisch opgehaald bij het openen van dit dashboard. Vereist dat de sheet gedeeld staat als &ldquo;Iedereen met de link kan bekijken&rdquo;.</div>
+    <label class="mlbl">Freshdesk meetbon proxy &mdash; API-key</label>
+    <input type="password" id="fdKeyInput" class="minput" placeholder="Bearer-key voor freshdesk-meetbon-proxy">
+    <div class="unote" style="text-align:left;margin:8px 0 14px;max-width:none">Wordt alleen lokaal in je browser bewaard (localStorage) &mdash; nooit in dit bestand opgeslagen of meegestuurd naar GitHub.</div>
+    <button class="bgo" style="padding:9px 24px;font-size:12px" onclick="saveFdKey()">Opslaan</button>
+  </div>
+</div>
+<div id="meetbonModal" class="modal-ov" style="display:none" onclick="if(event.target===this)closeMeetbon()">
+  <div class="modal">
+    <div class="modal-h"><span id="meetbonTitle">Meetbon</span><button class="modal-x" onclick="closeMeetbon()">&times;</button></div>
+    <div id="meetbonBody"></div>
+  </div>
 </div>
 <script>
 // ── globals ──────────────────────────────────────────────────────────────
@@ -169,7 +225,13 @@ function detectMonth(sheetName){
 }
 var PSHT={'jan':'Januari','feb':'Februari','mrt':'Maart','apr':'April','mei':'Mei','jun':'Juni','jul':'Juli','aug':'Augustus','sep':'September','okt':'Oktober','nov':'November','dec':'December'};
 var BELG=['vlaanderen','brussel','provincie antwerpen','prov. antwerpen','vlaams gewest','vlaams-brabant','west-vlaanderen','oost-vlaanderen'];
-var S={bellFiles:null,provFile:null,data:null,prevRows:null,charts:{}};
+var S={bellFiles:null,provFile:null,data:null,prevRows:null,charts:{},lastLoad:null};
+// ── config ───────────────────────────────────────────────────────────────
+var SHEET_ID='1h2pNuYP4_TARdUHHXwtUjqsybew5DRSLRMpulcVQmXE';
+var SHEET_EXPORT_URL='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/export?format=xlsx';
+var FD_PROXY_BASE='https://freshdesk-meetbon-proxy.dtch.workers.dev';
+var FD_KEY_LS='rd_fd_key';
+if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 // ── percentage kleurenschaal ─────────────────────────────────────────────
 // 0-60% donkerrood · 61-70% rood · 71-75% oranje · 76-80% lichtgroen · 81-85% groen · 85%+ donkergroen
 var PSCALE=[
@@ -191,6 +253,48 @@ function assignF(files,type){
 }
 function setProg(p){document.getElementById('upbar').style.display='block';document.getElementById('upfill').style.width=p+'%';}
 function showErr(m){var e=document.getElementById('uperr');e.textContent=m;e.style.display='block';}
+// ── auto-load uit Google Sheet ──────────────────────────────────────────
+function loadPrevRowsLS(){try{var s=localStorage.getItem('rd_rows');return s?JSON.parse(s):null;}catch(e){return null;}}
+function showManual(){
+  document.getElementById('autoLoadBox').style.display='none';
+  document.getElementById('autoLoadMsg').style.display='none';
+  document.getElementById('autoLoadErr').style.display='none';
+  document.getElementById('manualBlock').style.display='flex';
+}
+function setAutoStatus(state,msg){
+  var box=document.getElementById('autoLoadBox'),amsg=document.getElementById('autoLoadMsg'),err=document.getElementById('autoLoadErr'),manual=document.getElementById('manualBlock');
+  if(state==='loading'){
+    document.getElementById('upload-screen').style.display='flex';
+    document.getElementById('dashboard').style.display='none';
+    box.style.display='flex';amsg.style.display='block';amsg.textContent=msg;err.style.display='none';manual.style.display='none';
+  }else if(state==='error'){
+    box.style.display='none';amsg.style.display='block';amsg.textContent='Automatisch ophalen is niet gelukt.';
+    err.textContent=msg;err.style.display='block';manual.style.display='flex';
+  }
+}
+function autoLoadSheet(){
+  var btn=document.getElementById('refreshBtn');if(btn)btn.classList.add('spin');
+  setAutoStatus('loading','Bellijst wordt opgehaald uit Google Sheets…');
+  var prevRows=S.data?S.data.rows.slice():loadPrevRowsLS();
+  fetch(SHEET_EXPORT_URL,{cache:'no-store'})
+    .then(function(r){if(!r.ok)throw new Error('server gaf status '+r.status);return r.arrayBuffer();})
+    .then(function(buf){var wb=XLSX.read(buf,{type:'array',cellDates:true});return parseBell([wb]);})
+    .then(function(rows){
+      if(S.provFile)return readWB(S.provFile).then(function(wb){attachProv(rows,wb);return rows;});
+      return rows;
+    })
+    .then(function(rows){
+      try{localStorage.setItem('rd_rows',JSON.stringify(rows.slice(0,3000)));}catch(e){}
+      S.data=buildDataset(rows,prevRows);
+      S.lastLoad=new Date();
+      if(btn)btn.classList.remove('spin');
+      renderDashboard();
+    })
+    .catch(function(err){
+      if(btn)btn.classList.remove('spin');
+      setAutoStatus('error','Kon de Google Sheet niet automatisch ophalen ('+err.message+'). Controleer of de sheet gedeeld staat als “Iedereen met de link kan bekijken”, of upload de bellijst hieronder handmatig.');
+    });
+}
 function processUpload(){
   document.getElementById('bgo').disabled=true;
   document.getElementById('uperr').style.display='none';
@@ -207,6 +311,7 @@ function processUpload(){
       setProg(80);
       try{localStorage.setItem('rd_rows',JSON.stringify(rows.slice(0,3000)));}catch(e){}
       S.data=buildDataset(rows,S.prevRows);
+      S.lastLoad=new Date();
       setProg(100);
       setTimeout(renderDashboard,300);
     })
@@ -235,7 +340,7 @@ function parseBell(wbs){
         if(!adv)return;
         adv=adv.charAt(0).toUpperCase()+adv.slice(1).toLowerCase();
         if(adv.toLowerCase()==='kevin')return;
-        rows.push({ordr:cStr(r[cm.ordr]),klant:cStr(r[cm.klant]),adv:adv,waarde:cNum(r[cm.waarde]),besteld:cStr(r[cm.besteld]),dtM:cStr(r[cm.dtM]),dtB:cStr(r[cm.dtB]),bom:cStr(r[cm.bom]),reden:cStr(r[cm.reden]),maand:maand,prov:null,isB:!!cStr(r[cm.besteld]),hasC:!!cStr(r[cm.dtB])});
+        rows.push({ordr:cStr(r[cm.ordr]),klant:cStr(r[cm.klant]),adv:adv,waarde:cNum(r[cm.waarde]),besteld:cStr(r[cm.besteld]),dtM:cStr(r[cm.dtM]),dtB:cStr(r[cm.dtB]),bom:cStr(r[cm.bom]),reden:cStr(r[cm.reden]),ticket:cStr(r[cm.ticket]),maand:maand,prov:null,isB:!!cStr(r[cm.besteld]),hasC:!!cStr(r[cm.dtB])});
       });
     });
   });
@@ -244,7 +349,7 @@ function parseBell(wbs){
 }
 function detectCols(keys){
   var m={};
-  var p={ordr:/ordernummer|meetservice/i,klant:/klant|naam/i,adv:/adviseur/i,waarde:/waarde|prijs/i,besteld:/besteld/i,dtM:/datum.*met|meetdatum/i,dtB:/datum.*bell|bel.*datum/i,bom:/bel.*mail|mail.*bel/i,reden:/reden/i};
+  var p={ordr:/ordernummer|meetservice/i,klant:/klant|naam/i,adv:/adviseur/i,waarde:/waarde|prijs/i,besteld:/besteld/i,dtM:/datum.*met|meetdatum/i,dtB:/datum.*bell|bel.*datum/i,bom:/bel.*mail|mail.*bel/i,reden:/reden/i,ticket:/ticket/i};
   keys.forEach(function(k){Object.entries(p).forEach(function(e){if(!m[e[0]]&&e[1].test(k))m[e[0]]=k;});});
   if(!m.ordr&&keys[2])m.ordr=keys[2];
   // Adviseur-kolom NIET blind op positie 4 gokken: als een tabblad geen "Adviseur"
@@ -340,6 +445,7 @@ function renderDashboard(){
   document.getElementById('dashboard').style.display='block';
   document.getElementById('sd').classList.add('on');
   document.getElementById('slbl').textContent=D.months.join(' + ')+' geladen';
+  var lu=document.getElementById('lastUpd');if(lu)lu.textContent=S.lastLoad?(' · bijgewerkt '+S.lastLoad.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})):'';
   var hp=document.getElementById('hdrP');hp.style.display='';hp.textContent=D.months[0]+' – '+D.months[D.months.length-1]+' 2026';
   Object.values(S.charts).forEach(function(c){try{c.destroy();}catch(e){}});
   S.charts={};
@@ -361,6 +467,7 @@ function buildTabs(D){
   ];
   D.months.forEach(function(m){defs.push({id:'m_'+m,lbl:'&#128995; '+m,cls:''}); });
   if(D.NC.length)defs.push({id:'nc',lbl:'&#128338; Nieuwe best.',cls:'tb'});
+  if(fdTargetMonths().filter(function(m){return D.months.indexOf(m)>-1;}).length)defs.push({id:'fd',lbl:'&#128206; Meetbonnen',cls:''});
   defs.push({id:'dl',lbl:'&#8659;&#65039; Downloads',cls:''});
   defs.push({id:'up',lbl:'&#8679; Nieuw bestand',cls:'tu'});
   bar.innerHTML='';
@@ -377,6 +484,7 @@ function switchPage(id,el){
   if(id==='up'){
     document.getElementById('upload-screen').style.display='flex';
     document.getElementById('dashboard').style.display='none';
+    showManual();
     return;
   }
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -632,6 +740,22 @@ function buildAllPages(D){
     );
     window._ncCache={NC:NC,ncMail:ncMail,ncBel:ncBel,M:M};
   }
+  // ── MEETBONNEN (Freshdesk, read-only) ───────────────────────────────────
+  var fdM=fdTargetMonths().filter(function(m){return D.months.indexOf(m)>-1;});
+  if(fdM.length){
+    var fdRows=D.rows.filter(function(r){return fdM.indexOf(r.maand)>-1&&r.ticket;});
+    var fdTr=fdRows.map(function(r){
+      return '<tr><td><strong>'+(r.klant||'—')+'</strong></td><td>'+(r.ordr||'—')+'</td><td>'+r.adv+'</td><td>'+r.maand+'</td><td>'+r.ticket+'</td>'+
+      '<td><button class="mb" onclick="openMeetbon(\''+r.ticket+'\')">&#128196; Bekijk meetbon</button></td></tr>';
+    }).join('');
+    addPage('fd',
+      '<div class="sec">Meetbonnen &mdash; '+fdM.join(' &amp; ')+'</div>'+
+      '<div class="ibox ibl"><div class="it">&#8505;&#65039; Freshdesk meetbon-koppeling (read-only)</div><p>Haalt de interne meetbon (PDF) per ticket op en leest de tekst uit. Alleen voor de huidige en vorige maand, om het aantal Freshdesk-aanroepen laag te houden. Vereist een API-key &mdash; zie &#9881;&#65039; Instellingen.</p></div>'+
+      '<div class="scr"><table><thead><tr><th>Klant</th><th>Order</th><th>Adviseur</th><th>Maand</th><th>Ticket</th><th></th></tr></thead><tbody>'+
+      (fdTr||'<tr><td colspan="6" style="color:#999">Geen rijen met ticketnummer gevonden voor deze maanden.</td></tr>')+
+      '</tbody></table></div>'
+    );
+  }
   // ── DOWNLOADS ──────────────────────────────────────────────────────────
   var dlB=AN.map(function(a){return '<div class="db" onclick="dlAdv(\''+a+'\')"><div style="font-size:22px">&#128196;</div><div>'+a+'</div></div>';}).join('');
   addPage('dl',
@@ -814,6 +938,144 @@ function buildAdvHTML(adv){
 function dlAdv(adv){var html=buildAdvHTML(adv);var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));a.download=adv.toLowerCase()+'_dashboard.html';a.click();}
 function dlAll(){S.data.adviseurs.forEach(function(a,i){setTimeout(function(){dlAdv(a);},i*500);});}
 function dlSelf(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([document.documentElement.outerHTML],{type:'text/html;charset=utf-8'}));a.download='index.html';a.click();}
+// ── instellingen (Freshdesk API-key, alleen lokaal) ─────────────────────
+function getFdKey(){try{return localStorage.getItem(FD_KEY_LS)||'';}catch(e){return '';}}
+function openSettings(){document.getElementById('fdKeyInput').value=getFdKey();document.getElementById('settingsModal').style.display='flex';}
+function closeSettings(){document.getElementById('settingsModal').style.display='none';}
+function saveFdKey(){
+  var v=document.getElementById('fdKeyInput').value.trim();
+  try{if(v)localStorage.setItem(FD_KEY_LS,v);else localStorage.removeItem(FD_KEY_LS);}catch(e){}
+  closeSettings();
+}
+// ── Freshdesk meetbon-koppeling (read-only, client-side) ────────────────
+function fdTargetMonths(){var now=new Date();return[MORD[(now.getMonth()+11)%12],MORD[now.getMonth()]];}
+function closeMeetbon(){document.getElementById('meetbonModal').style.display='none';}
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return c==='&'?'&amp;':c==='<'?'&lt;':'&gt;';});}
+function showMeetbonModal(state,data){
+  var ov=document.getElementById('meetbonModal'),h=document.getElementById('meetbonTitle'),body=document.getElementById('meetbonBody');
+  ov.style.display='flex';
+  if(state==='loading'){h.textContent='Meetbon';body.innerHTML='<div class="unote" style="max-width:none;text-align:left">'+escapeHtml(data)+'</div>';}
+  else if(state==='error'){h.textContent='Meetbon — fout';body.innerHTML='<div class="uperr" style="display:block">'+escapeHtml(data)+'</div>';}
+  else if(state==='done'){h.textContent='Meetbon — ticket '+escapeHtml(data.ticketId);body.innerHTML=renderMeetbon(data);}
+}
+function openMeetbon(ticketId){
+  var key=getFdKey();
+  if(!key){showMeetbonModal('error','Nog geen Freshdesk API-key ingesteld. Open ⚙️ Instellingen om er een op te slaan.');return;}
+  showMeetbonModal('loading','Meetbon ophalen voor ticket '+ticketId+'…');
+  fetch(FD_PROXY_BASE+'/ticket/'+encodeURIComponent(ticketId)+'/meetbon',{headers:{Authorization:'Bearer '+key}})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status+' bij ophalen bijlage-lijst');return r.json();})
+    .then(function(info){
+      var att=(info.attachments||[]).find(function(a){return /_intern/i.test(a.name||'');});
+      if(!att)throw new Error('Geen "_intern" meetbon gevonden voor dit ticket.');
+      return fetch(FD_PROXY_BASE+'/ticket/'+encodeURIComponent(ticketId)+'/attachment/'+encodeURIComponent(att.id),{headers:{Authorization:'Bearer '+key}})
+        .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status+' bij downloaden PDF');return r.arrayBuffer();})
+        .then(function(buf){return parseMeetbon(buf);})
+        .then(function(parsed){parsed.ticketId=ticketId;parsed.fileName=att.name;showMeetbonModal('done',parsed);});
+    })
+    .catch(function(err){showMeetbonModal('error',err.message);});
+}
+function renderMeetbon(p){
+  var h=p.header||{};
+  var top='<div class="mbhdr">'+
+    (h.adviseur?'<div><b>'+escapeHtml(h.adviseur)+'</b>adviseur</div>':'')+
+    (h.datum?'<div><b>'+escapeHtml(h.datum)+'</b>datum meting</div>':'')+
+    (h.aanvraagCode?'<div><b>'+escapeHtml(h.aanvraagCode)+'</b>meetservice-aanvraag</div>':'')+
+    '<div><b>'+(p.producten?p.producten.length:0)+'</b>producten</div>'+
+    '</div>';
+  var prodRows=(p.producten||[]).map(function(pr){
+    return '<tr><td>'+escapeHtml(pr.nr)+'</td><td>'+escapeHtml(pr.aantal)+'</td><td>'+escapeHtml(pr.naam)+'</td><td>'+escapeHtml(pr.kleur)+'</td>'+
+    '<td>'+escapeHtml(pr.breedte)+' &times; '+escapeHtml(pr.hoogte)+'</td><td>'+escapeHtml(pr.bediening)+'</td><td>'+escapeHtml(pr.systeem)+'</td>'+
+    '<td>'+escapeHtml(pr.ruimte)+'</td><td style="font-size:11px;color:#777">'+escapeHtml(pr.montage)+(pr.montage&&pr.opmerkingen?' — ':'')+escapeHtml(pr.opmerkingen)+'</td></tr>';
+  }).join('');
+  var prodTbl=p.producten&&p.producten.length?'<table class="prodtbl"><thead><tr><th>#</th><th>Aantal</th><th>Product</th><th>Kleur</th><th>Afmeting</th><th>Bediening</th><th>Systeem</th><th>Ruimte</th><th>Montage / opm.</th></tr></thead><tbody>'+prodRows+'</tbody></table>':'<p class="unote" style="max-width:none;text-align:left">Geen producttabel herkend in de PDF-tekst.</p>';
+  var a=p.aanvullend||{};
+  var aanv=['wensen','opmerkingenAfspraak','montage'].map(function(k){
+    if(!a[k])return'';
+    var lbl=k==='wensen'?'Speciale wensen productie':k==='opmerkingenAfspraak'?'Opmerkingen over de afspraak':'Bijzonderheden voor montage';
+    return '<div class="aanv"><b>'+lbl+'</b>'+escapeHtml(a[k])+'</div>';
+  }).join('');
+  return top+prodTbl+aanv+
+    '<details class="rawtoggle"><summary>Ruwe tekst-extractie tonen</summary><div class="pdftext">'+escapeHtml(p.raw)+'</div></details>';
+}
+// ── PDF-tekst extractie & meetbon-parsing (pdf.js, client-side) ─────────
+function pageTextLines(page){
+  return page.getTextContent().then(function(tc){
+    var lines=[],cur=null,curY=null;
+    tc.items.forEach(function(it){
+      var y=it.transform[5];
+      if(curY===null||Math.abs(y-curY)>2){
+        if(cur!==null)lines.push(cur.trim());
+        cur=it.str;curY=y;
+      }else{
+        cur+=(cur&&!/\s$/.test(cur)&&it.str&&!/^\s/.test(it.str)?' ':'')+it.str;
+      }
+    });
+    if(cur!==null)lines.push(cur.trim());
+    return lines.filter(Boolean);
+  });
+}
+var PROD_LABELS=['Aantal','Productnaam','Kleur','Breedte','Hoogte','Type bediening','Type systeem','Kleur systeem','Speciale montage','Ruimte in huis','Opmerkingen'];
+function labelKey(lbl){
+  return {Aantal:'aantal',Productnaam:'naam',Kleur:'kleur',Breedte:'breedte',Hoogte:'hoogte','Type bediening':'bediening','Type systeem':'systeem','Kleur systeem':'kleurSysteem','Speciale montage':'montage','Ruimte in huis':'ruimte'}[lbl]||lbl;
+}
+function parseProductBlock(num,text){
+  var lines=text.split('\n').map(function(l){return l.trim();}).filter(Boolean);
+  var obj={nr:num};
+  PROD_LABELS.forEach(function(lbl){
+    var li=lines.indexOf(lbl);
+    if(li===-1||li+1>=lines.length)return;
+    if(lbl==='Opmerkingen'){
+      var rest=lines.slice(li+1);
+      var cut=rest.findIndex(function(l){return PROD_LABELS.indexOf(l)>-1||/^Product\s+\d+/i.test(l);});
+      obj.opmerkingen=(cut>-1?rest.slice(0,cut):rest).join(' ').trim();
+    }else{
+      obj[labelKey(lbl)]=lines[li+1];
+    }
+  });
+  return obj;
+}
+function parseHeader(fullText){
+  var out={};
+  var m1=fullText.match(/Je bent op ([^,]+?) geholpen door onze adviseur ([^.\n]+)\./i);
+  if(m1){out.datum=m1[1].trim();out.adviseur=m1[2].trim();}
+  var m2=fullText.match(/Meetservice aanvraag\s*([A-Za-z0-9-]+)/i);
+  if(m2)out.aanvraagCode=m2[1].trim();
+  return out;
+}
+function parseAanvullend(fullText){
+  var heads=['Speciale wensen productie','Opmerkingen over de afspraak','Bijzonderheden voor montage'];
+  var keys={'Speciale wensen productie':'wensen','Opmerkingen over de afspraak':'opmerkingenAfspraak','Bijzonderheden voor montage':'montage'};
+  var res={};
+  heads.forEach(function(h){
+    var idx=fullText.indexOf(h);
+    if(idx===-1)return;
+    var start=idx+h.length,end=fullText.length;
+    heads.forEach(function(h2){if(h2===h)return;var i2=fullText.indexOf(h2,start);if(i2>-1&&i2<end)end=i2;});
+    res[keys[h]]=fullText.slice(start,end).trim();
+  });
+  return res;
+}
+function parseMeetbon(buf){
+  return pdfjsLib.getDocument({data:buf}).promise.then(function(pdf){
+    var pagePromises=[];
+    for(var i=1;i<=pdf.numPages;i++){pagePromises.push(pdf.getPage(i).then(pageTextLines));}
+    return Promise.all(pagePromises);
+  }).then(function(pagesLines){
+    var fullText=pagesLines.map(function(lines){return lines.join('\n');}).join('\n');
+    var header=parseHeader(fullText);
+    var idxs=[],re=/Product\s+(\d+)/g,m;
+    while((m=re.exec(fullText))){idxs.push({idx:m.index,num:m[1]});}
+    var producten=idxs.map(function(x,i){
+      var end=i+1<idxs.length?idxs[i+1].idx:fullText.length;
+      return parseProductBlock(x.num,fullText.slice(x.idx,end));
+    });
+    var aanvullend=parseAanvullend(fullText);
+    return{header:header,producten:producten,aanvullend:aanvullend,raw:fullText};
+  });
+}
+// ── start: haal automatisch op bij openen ────────────────────────────────
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){autoLoadSheet();});
+else autoLoadSheet();
 </script>
 </body>
 </html>
