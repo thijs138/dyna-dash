@@ -810,17 +810,19 @@ function buildAllPages(D){
   // ── MEETBONNEN (Freshdesk, read-only) ───────────────────────────────────
   var fdM=fdTargetMonths().filter(function(m){return D.months.indexOf(m)>-1;});
   if(fdM.length){
-    var fdRows=D.rows.filter(function(r){return fdM.indexOf(r.maand)>-1&&r.ticket;});
+    var fdRows=D.rows.filter(function(r){return fdM.indexOf(r.maand)>-1;});
     window._fdRows=fdRows;
     addPage('fd',
       '<div class="sec">Meetbonnen &mdash; '+fdM.join(' &amp; ')+'</div>'+
-      '<div class="ibox ibl"><div class="it">&#8505;&#65039; Freshdesk meetbon-koppeling (read-only)</div><p>Haalt de interne meetbon (PDF) per ticket op en leest de tekst uit. Alleen voor de huidige en vorige maand, om het aantal Freshdesk-aanroepen laag te houden. Vereist een API-key &mdash; zie &#9881;&#65039; Instellingen.</p></div>'+
-      '<div class="scr"><table><thead><tr><th>Klant</th><th>Order</th><th>Adviseur</th><th class="sortable" onclick="toggleFdSort()" title="Sorteer op datum">Datum meting <span id="fdSortIcon">&#8597;</span></th><th>Maand</th><th>Ticket</th><th></th></tr></thead><tbody id="fdTbody"></tbody></table></div>'
+      '<div class="ibox ibl"><div class="it">&#8505;&#65039; Freshdesk meetbon-koppeling (read-only)</div><p>Zoekt per order (op <strong>Meetservice ordernummer</strong>) het bijbehorende meetoverzicht-ticket op via een eenmalige, gecachete ticket-index, en haalt daarna de interne meetbon (PDF) op en leest de tekst uit. Alleen voor de huidige en vorige maand. Vereist een API-key &mdash; zie &#9881;&#65039; Instellingen.</p></div>'+
+      '<div id="fdIndexBanner"></div>'+
+      '<div class="scr"><table><thead><tr><th>Klant</th><th>Order</th><th>Adviseur</th><th class="sortable" onclick="toggleFdSort()" title="Sorteer op datum">Datum meting <span id="fdSortIcon">&#8597;</span></th><th>Maand</th><th>Meetbon</th></tr></thead><tbody id="fdTbody"></tbody></table></div>'
     );
     renderFdTable();
+    ensureMeetbonIndex().then(renderFdTable).catch(renderFdTable);
     addPage('pi',
       '<div class="sec">Productinzichten &mdash; '+fdM.join(' &amp; ')+'</div>'+
-      '<div class="ibox ibl"><div class="it">&#8505;&#65039; Automatisch opgebouwd uit meetbonnen</div><p>Haalt op de achtergrond, in kleine batches, alle meetbonnen voor '+fdM.join(' + ')+' op en toont geaggregeerde productdata. Alleen GET-verzoeken, zelfde beperkte scope als de Meetbonnen-tab.</p></div>'+
+      '<div class="ibox ibl"><div class="it">&#8505;&#65039; Automatisch opgebouwd uit meetbonnen</div><p>Zoekt via de ticket-index alle meetoverzicht-tickets voor '+fdM.join(' + ')+' op en haalt ze op de achtergrond in kleine batches op. Alleen GET-verzoeken, zelfde beperkte scope als de Meetbonnen-tab.</p></div>'+
       '<div id="piRoot"></div>'
     );
     renderProductInsights();
@@ -1070,11 +1072,15 @@ function renderProductInsights(){
   var cache=S.meetbonCache;
   var tickets=Object.keys(cache);
   var key=getFdKey();
-  var progress=(_bulkFetchState.total>0)?(
+  var idxProgress=(_indexState.running||_indexState.error)?(
+    '<div class="ibox ibl" style="margin-bottom:12px"><div class="it">'+(_indexState.running?'&#8987; Ticket-index opbouwen…':'&#9888;&#65039; Index opbouwen mislukt')+'</div>'+
+    '<p>'+(_indexState.running?(_indexState.ordersFound+' orders gevonden tot nu toe (eenmalig per sessie).'):escapeHtml(_indexState.error))+'</p></div>'
+  ):'';
+  var progress=idxProgress+((_bulkFetchState.total>0)?(
     '<div class="ibox ibl" style="margin-bottom:16px"><div class="it">'+(_bulkFetchState.running?'&#8987; Meetbonnen ophalen op de achtergrond…':'&#9989; Achtergrond-ophalen klaar')+'</div>'+
     '<div class="pibar"><div class="pibarfill" id="piProgressBar" style="width:'+(_bulkFetchState.total?Math.round(_bulkFetchState.done/_bulkFetchState.total*100):0)+'%"></div></div>'+
     '<p id="piProgressTxt" style="margin-top:6px">'+(_bulkFetchState.running?_bulkFetchState.done+' van '+_bulkFetchState.total+' meetbonnen opgehaald…':'Klaar: '+_bulkFetchState.done+' van '+_bulkFetchState.total+' opgehaald')+(_bulkFetchState.errors?' ('+_bulkFetchState.errors+' mislukt/overgeslagen)':'')+'</p></div>'
-  ):'';
+  ):'');
   if(!tickets.length){
     root.innerHTML=progress+'<div class="ibox"><div class="it">&#128202; Nog geen productdata</div><p>'+
       (key?'Meetbonnen voor de huidige en vorige maand worden automatisch op de achtergrond opgehaald — dit kan bij veel orders even duren.':'Stel eerst een Freshdesk API-key in bij &#9881;&#65039; Instellingen; daarna worden meetbonnen automatisch opgehaald.')+
@@ -1083,7 +1089,7 @@ function renderProductInsights(){
   }
   var entries=[];
   var ticketAdvMap={};
-  (window._fdRows||[]).forEach(function(r){if(r.ticket)ticketAdvMap[r.ticket]=r.adv;});
+  (window._fdRows||[]).forEach(function(r){var m=lookupMeetbonTicket(r.ordr);if(m)ticketAdvMap[m.ticketId]=r.adv;});
   tickets.forEach(function(t){
     var adv=ticketAdvMap[t]||(cache[t].header&&cache[t].header.adviseur)||'Onbekend';
     (cache[t].producten||[]).forEach(function(p){entries.push({adv:adv,p:p});});
@@ -1146,10 +1152,20 @@ function renderFdTable(){
       return (va-vb)*FD_SORT.dir;
     });
   }
+  var banner=document.getElementById('fdIndexBanner');
+  if(banner){
+    if(_indexState.running)banner.innerHTML='<div class="ibox ibl"><div class="it">&#8987; Ticket-index opbouwen…</div><p>'+_indexState.ordersFound+' orders gevonden tot nu toe. Dit hoeft maar één keer per sessie.</p></div>';
+    else if(_indexState.error)banner.innerHTML='<div class="ibox iwarn"><div class="it">&#9888;&#65039; Index opbouwen mislukt</div><p>'+escapeHtml(_indexState.error)+'</p></div>';
+    else banner.innerHTML='';
+  }
   tbody.innerHTML=rows.map(function(r){
-    return '<tr><td><strong>'+(r.klant||'—')+'</strong></td><td>'+(r.ordr||'—')+'</td><td>'+r.adv+'</td><td>'+(r.dtM||'—')+'</td><td>'+r.maand+'</td><td>'+r.ticket+'</td>'+
-    '<td><button class="mb" onclick="openMeetbon(\''+r.ticket+'\')">&#128196; Bekijk meetbon</button></td></tr>';
-  }).join('')||'<tr><td colspan="7" style="color:#999">Geen rijen met ticketnummer gevonden voor deze maanden.</td></tr>';
+    var match=lookupMeetbonTicket(r.ordr);
+    var action;
+    if(!_meetbonIndex)action='<span style="color:#aaa;font-size:11px">index laden…</span>';
+    else if(!match)action='<span style="color:#bbb;font-size:11px">Nog geen meetbon gevonden</span>';
+    else action=(match.type==='offerte'?'<span class="pill po" style="margin-right:6px">Offerte</span>':'')+'<button class="mb" onclick="openMeetbon(\''+match.ticketId+'\')">&#128196; Bekijk meetbon</button>';
+    return '<tr><td><strong>'+(r.klant||'—')+'</strong></td><td>'+(r.ordr||'—')+'</td><td>'+r.adv+'</td><td>'+(r.dtM||'—')+'</td><td>'+r.maand+'</td><td>'+action+'</td></tr>';
+  }).join('')||'<tr><td colspan="6" style="color:#999">Geen rijen gevonden voor deze maanden.</td></tr>';
   var icon=document.getElementById('fdSortIcon');
   if(icon)icon.innerHTML=FD_SORT.dir===1?'&#9650;':FD_SORT.dir===-1?'&#9660;':'&#8597;';
 }
@@ -1223,6 +1239,90 @@ function openMeetbon(ticketId){
     })
     .catch(function(err){showMeetbonModal('error',friendlyFetchError(err.message));});
 }
+// ── meetbon-ticket-index (ordernummer → ticket) ─────────────────────────
+// De "Ticketnummer"-kolom in de sheet verwijst naar een ANDER ticket (automatische
+// afspraakherinnering) en is niet bruikbaar om het echte meetoverzicht-ticket te
+// vinden. De proxy bouwt daarom een index {ordernummer: {ticketId,type}} op door
+// Freshdesk-tickets sinds een datum te scannen; die index cachen we hier.
+var FD_INDEX_LS='rd_meetbon_index_v1';
+var _meetbonIndex=null;
+var _indexState={running:false,done:false,error:null,ordersFound:0,promise:null};
+function normOrdr(s){return String(s==null?'':s).trim().toUpperCase().replace(/^MS/,'');}
+function indexSinceDate(){
+  // lokale datum opbouwen zonder toISOString() (die naar UTC normaliseert en in
+  // sommige tijdzones een dag kan terugschuiven rond middernacht)
+  var now=new Date();
+  var y=now.getFullYear(),m=now.getMonth()-1;
+  if(m<0){m=11;y--;}
+  return y+'-'+String(m+1).padStart(2,'0')+'-01';
+}
+function normalizeIndex(raw){
+  var out={};
+  Object.keys(raw||{}).forEach(function(k){out[normOrdr(k)]=raw[k];});
+  return out;
+}
+function loadMeetbonIndexLS(){try{var s=sessionStorage.getItem(FD_INDEX_LS);return s?JSON.parse(s):null;}catch(e){return null;}}
+function saveMeetbonIndexLS(){try{sessionStorage.setItem(FD_INDEX_LS,JSON.stringify(_meetbonIndex||{}));}catch(e){}}
+function lookupMeetbonTicket(ordr){
+  if(!_meetbonIndex)return null;
+  return _meetbonIndex[normOrdr(ordr)]||null;
+}
+function fdIndexProgressRender(){
+  var pgFd=document.getElementById('pg_fd'),pgPi=document.getElementById('pg_pi');
+  if(pgFd&&pgFd.classList.contains('active'))renderFdTable();
+  if(pgPi&&pgPi.classList.contains('active'))renderProductInsights();
+}
+function fetchMeetbonIndexPage(since,startPage,merged){
+  var key=getFdKey();
+  var url=FD_PROXY_BASE+'/index/meetbon?since='+encodeURIComponent(since)+'&startPage='+startPage+'&maxPages=40';
+  return fetch(url,{headers:{Authorization:'Bearer '+key}})
+    .then(function(r){
+      if(r.status===429)throw new Error('429');
+      if(!r.ok)throw new Error('HTTP '+r.status+' bij opbouwen ticket-index');
+      return r.json();
+    })
+    .then(function(data){
+      Object.keys(data.index||{}).forEach(function(k){merged[k]=data.index[k];});
+      _indexState.ordersFound=Object.keys(merged).length;
+      fdIndexProgressRender();
+      if(data.done)return merged;
+      if(data.hitHardCap)return fetchMeetbonIndexPage(data.lastCreatedAt,1,merged);
+      return fetchMeetbonIndexPage(since,data.nextPage,merged);
+    })
+    .catch(function(err){
+      if(err.message==='429'){
+        return new Promise(function(res){setTimeout(res,5000);}).then(function(){return fetchMeetbonIndexPage(since,startPage,merged);});
+      }
+      throw err;
+    });
+}
+function startMeetbonIndexBuild(){
+  if(_indexState.promise)return _indexState.promise;
+  if(!getFdKey())return Promise.reject(new Error('Geen Freshdesk API-key ingesteld'));
+  _indexState.running=true;_indexState.done=false;_indexState.error=null;_indexState.ordersFound=0;
+  fdIndexProgressRender();
+  var p=fetchMeetbonIndexPage(indexSinceDate(),1,{})
+    .then(function(merged){
+      _meetbonIndex=normalizeIndex(merged);
+      saveMeetbonIndexLS();
+      _indexState.running=false;_indexState.done=true;
+      fdIndexProgressRender();
+      return _meetbonIndex;
+    })
+    .catch(function(err){
+      _indexState.running=false;_indexState.error=err.message;_indexState.promise=null;
+      fdIndexProgressRender();
+      throw err;
+    });
+  _indexState.promise=p;
+  return p;
+}
+function ensureMeetbonIndex(){
+  if(_meetbonIndex)return Promise.resolve(_meetbonIndex);
+  var cached=loadMeetbonIndexLS();
+  if(cached){_meetbonIndex=cached;return Promise.resolve(_meetbonIndex);}
+  return startMeetbonIndexBuild();
+}
 // ── bulk-ophalen op de achtergrond (batching + backoff, read-only) ──────
 var BULK_CONCURRENCY=4;
 var _bulkFetchState={running:false,done:0,total:0,errors:0};
@@ -1231,10 +1331,22 @@ function startBulkMeetbonFetch(){
   if(_bulkFetchState.running)return;
   if(!getFdKey())return;
   ensureMeetbonCache();
-  var allTickets=(window._fdRows||[]).map(function(r){return r.ticket;}).filter(Boolean);
-  allTickets=allTickets.filter(function(t,i){return allTickets.indexOf(t)===i;});
-  var todo=allTickets.filter(function(t){return isValidTicketId(t)&&!S.meetbonCache[t];});
-  if(!todo.length)return;
+  ensureMeetbonIndex().then(function(){
+    var allTickets=[];
+    (window._fdRows||[]).forEach(function(r){
+      var match=lookupMeetbonTicket(r.ordr);
+      if(match&&match.type!=='offerte')allTickets.push(match.ticketId);
+    });
+    allTickets=allTickets.filter(function(t,i){return allTickets.indexOf(t)===i;});
+    var todo=allTickets.filter(function(t){return isValidTicketId(t)&&!S.meetbonCache[t];});
+    if(!todo.length){var pg=document.getElementById('pg_pi');if(pg&&pg.classList.contains('active'))renderProductInsights();return;}
+    runBulkFetchQueue(todo);
+  }).catch(function(err){
+    var root=document.getElementById('piRoot');
+    if(root&&document.getElementById('pg_pi')&&document.getElementById('pg_pi').classList.contains('active'))renderProductInsights();
+  });
+}
+function runBulkFetchQueue(todo){
   _bulkFetchState={running:true,done:0,total:todo.length,errors:0};
   var idx=0,activeWorkers=0;
   function renderIfActive(){var pg=document.getElementById('pg_pi');if(pg&&pg.classList.contains('active'))updatePiProgress();}
@@ -1395,7 +1507,7 @@ function enrichProvinceFromMeetbon(ticketId,adres){
   var prov=pc4ToProvince(adres.pc4);
   if(!prov)return null;
   var changed=false;
-  S.data.rows.forEach(function(r){if(r.ticket===ticketId&&!r.prov){r.prov=prov;changed=true;}});
+  S.data.rows.forEach(function(r){var m=lookupMeetbonTicket(r.ordr);if(m&&m.ticketId===ticketId&&!r.prov){r.prov=prov;changed=true;}});
   if(changed){
     var activeBtn=document.querySelector('.tab.active'),activeId=activeBtn?activeBtn.getAttribute('data-id'):null;
     S.data=buildDataset(S.data.rows,S.prevRows);
