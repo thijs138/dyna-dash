@@ -1161,7 +1161,8 @@ function renderFdTable(){
   tbody.innerHTML=rows.map(function(r){
     var match=lookupMeetbonTicket(r.ordr);
     var action;
-    if(!_meetbonIndex)action='<span style="color:#aaa;font-size:11px">index laden…</span>';
+    if(!_meetbonIndex&&_indexState.error)action='<span style="color:#bbb;font-size:11px" title="'+escapeHtml(_indexState.error)+'">Geen API-key ingesteld</span>';
+    else if(!_meetbonIndex)action='<span style="color:#aaa;font-size:11px">index laden…</span>';
     else if(!match)action='<span style="color:#bbb;font-size:11px">Nog geen meetbon gevonden</span>';
     else action=(match.type==='offerte'?'<span class="pill po" style="margin-right:6px">Offerte</span>':'')+'<button class="mb" onclick="openMeetbon(\''+match.ticketId+'\')">&#128196; Bekijk meetbon</button>';
     return '<tr><td><strong>'+(r.klant||'—')+'</strong></td><td>'+(r.ordr||'—')+'</td><td>'+r.adv+'</td><td>'+(r.dtM||'—')+'</td><td>'+r.maand+'</td><td>'+action+'</td></tr>';
@@ -1298,7 +1299,11 @@ function fetchMeetbonIndexPage(since,startPage,merged){
 }
 function startMeetbonIndexBuild(){
   if(_indexState.promise)return _indexState.promise;
-  if(!getFdKey())return Promise.reject(new Error('Geen Freshdesk API-key ingesteld'));
+  if(!getFdKey()){
+    _indexState.running=false;_indexState.error='Geen Freshdesk API-key ingesteld';
+    fdIndexProgressRender();
+    return Promise.reject(new Error(_indexState.error));
+  }
   _indexState.running=true;_indexState.done=false;_indexState.error=null;_indexState.ordersFound=0;
   fdIndexProgressRender();
   var p=fetchMeetbonIndexPage(indexSinceDate(),1,{})
