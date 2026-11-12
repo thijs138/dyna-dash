@@ -148,6 +148,12 @@ tbody td{padding:7px 9px;border-bottom:1px solid #f2f2f2}
 .aanv b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#999;margin-bottom:2px}
 details.rawtoggle{margin-top:10px;font-size:11px;color:#999}
 details.rawtoggle summary{cursor:pointer;font-weight:600}
+.ranklist{display:flex;flex-direction:column;gap:8px}
+.rlrow{display:grid;grid-template-columns:minmax(0,1.1fr) 2fr auto;gap:10px;align-items:center;font-size:12px}
+.rlname{color:var(--dk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rlbar{background:#f2f1ee;border-radius:6px;height:10px;overflow:hidden}
+.rlfill{background:var(--or);height:100%;border-radius:6px}
+.rlval{font-weight:700;font-size:11px;color:#888;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -513,7 +519,10 @@ function buildTabs(D){
   ];
   D.months.forEach(function(m){defs.push({id:'m_'+m,lbl:'&#128995; '+m,cls:''}); });
   if(D.NC.length)defs.push({id:'nc',lbl:'&#128338; Nieuwe best.',cls:'tb'});
-  if(fdTargetMonths().filter(function(m){return D.months.indexOf(m)>-1;}).length)defs.push({id:'fd',lbl:'&#128206; Meetbonnen',cls:''});
+  if(fdTargetMonths().filter(function(m){return D.months.indexOf(m)>-1;}).length){
+    defs.push({id:'fd',lbl:'&#128206; Meetbonnen',cls:''});
+    defs.push({id:'pi',lbl:'&#127912; Productinzichten',cls:''});
+  }
   defs.push({id:'dl',lbl:'&#8659;&#65039; Downloads',cls:''});
   defs.push({id:'up',lbl:'&#8679; Nieuw bestand',cls:'tu'});
   bar.innerHTML='';
@@ -556,6 +565,7 @@ function switchPage(id,el){
     var D=S.data;
     if(id==='nab2'){initNab2Charts(D);return;}
     if(id==='nc'){initNcCharts(D);return;}
+    if(id==='pi'){renderProductInsights();return;}
     // month page
     D.months.forEach(function(m){
       if(id==='m_'+m){initMonthCharts(D,m);}
@@ -809,6 +819,12 @@ function buildAllPages(D){
       '<div class="scr"><table><thead><tr><th>Klant</th><th>Order</th><th>Adviseur</th><th class="sortable" onclick="toggleFdSort()" title="Sorteer op datum">Datum meting <span id="fdSortIcon">&#8597;</span></th><th>Maand</th><th>Ticket</th><th></th></tr></thead><tbody id="fdTbody"></tbody></table></div>'
     );
     renderFdTable();
+    addPage('pi',
+      '<div class="sec">Productinzichten &mdash; '+fdM.join(' &amp; ')+'</div>'+
+      '<div class="ibox ibl"><div class="it">&#8505;&#65039; Opgebouwd uit bekeken meetbonnen</div><p>Toont geaggregeerde productdata uit de meetbonnen die je al via de Meetbonnen-tab hebt bekeken &mdash; geen extra Freshdesk-aanroepen. Bekijk meer meetbonnen om dit overzicht aan te vullen.</p></div>'+
+      '<div id="piRoot"></div>'
+    );
+    renderProductInsights();
   }
   // ── DOWNLOADS ──────────────────────────────────────────────────────────
   var dlB=AN.map(function(a){return '<div class="db" onclick="dlAdv(\''+a+'\')"><div style="font-size:22px">&#128196;</div><div>'+a+'</div></div>';}).join('');
@@ -1027,6 +1043,60 @@ function showMeetbonModal(state,data){
   else if(state==='error'){h.textContent='Meetbon — fout';body.innerHTML='<div class="uperr" style="display:block">'+escapeHtml(data)+'</div>';}
   else if(state==='done'){h.textContent='Meetbon — ticket '+escapeHtml(data.ticketId);body.innerHTML=renderMeetbon(data);}
 }
+function numFrom(s){var n=parseFloat(String(s==null?'':s).replace(',','.').replace(/[^\d.]/g,''));return isNaN(n)?null:n;}
+function rankList(entries,max){
+  max=max||8;
+  var top=entries.slice(0,max);
+  var total=entries.reduce(function(s,e){return s+e[1];},0)||1;
+  if(!top.length)return'<p class="unote" style="max-width:none;text-align:left">Geen data.</p>';
+  return '<div class="ranklist">'+top.map(function(e){
+    var pct=Math.round(e[1]/total*100);
+    return '<div class="rlrow"><div class="rlname">'+escapeHtml(e[0])+'</div><div class="rlbar"><div class="rlfill" style="width:'+pct+'%"></div></div><div class="rlval">'+e[1]+'&times;</div></div>';
+  }).join('')+'</div>';
+}
+function renderProductInsights(){
+  var root=document.getElementById('piRoot');
+  if(!root)return;
+  var cache=S.meetbonCache||{};
+  var tickets=Object.keys(cache);
+  if(!tickets.length){
+    root.innerHTML='<div class="ibox"><div class="it">&#128202; Nog geen productdata</div><p>Productinzichten worden opgebouwd uit meetbonnen die je al hebt bekeken. Ga naar de <strong>Meetbonnen</strong>-tab en klik bij een paar orders op &ldquo;Bekijk meetbon&rdquo; om hier inzichten te zien verschijnen &mdash; dit kost geen extra Freshdesk-aanroepen.</p></div>';
+    return;
+  }
+  var allProd=[];
+  tickets.forEach(function(t){(cache[t].producten||[]).forEach(function(p){allProd.push(p);});});
+  if(!allProd.length){
+    root.innerHTML='<div class="ibox iwarn"><div class="it">&#9888;&#65039; Geen producten herkend</div><p>Er '+(tickets.length===1?'is 1 meetbon':'zijn '+tickets.length+' meetbonnen')+' bekeken, maar er kon geen productdata uit worden herkend.</p></div>';
+    return;
+  }
+  function tally(key){
+    var m={};
+    allProd.forEach(function(p){var v=(p[key]||'').trim();if(!v)return;m[v]=(m[v]||0)+1;});
+    return Object.entries(m).sort(function(a,b){return b[1]-a[1];});
+  }
+  var naamT=tally('naam'),kleurT=tally('kleur'),bedT=tally('bediening'),sysT=tally('systeem');
+  var avgPerOrder=r1(allProd.length/tickets.length);
+  var breedtes=allProd.map(function(p){return numFrom(p.breedte);}).filter(function(v){return v!==null;});
+  var hoogtes=allProd.map(function(p){return numFrom(p.hoogte);}).filter(function(v){return v!==null;});
+  var avgB=breedtes.length?Math.round(breedtes.reduce(function(a,b){return a+b;},0)/breedtes.length):null;
+  var avgH=hoogtes.length?Math.round(hoogtes.reduce(function(a,b){return a+b;},0)/hoogtes.length):null;
+  root.innerHTML=
+    '<div class="kg">'+
+    kpi('ka',tickets.length.toString(),'Meetbonnen bekeken','huidige + vorige maand')+
+    kpi('ka',allProd.length.toString(),'Producten totaal','')+
+    kpi('',avgPerOrder.toString(),'Gem. producten/order','')+
+    (avgB&&avgH?kpi('',avgB+' &times; '+avgH+' cm','Gem. afmeting',''):'')+
+    '</div>'+
+    '<div class="r2">'+
+    '<div class="cc"><div class="cct">Top productnamen</div>'+rankList(naamT)+'</div>'+
+    '<div class="cc"><div class="cct">Top kleuren</div>'+(kleurT.length?'<div style="height:220px"><canvas id="cPiKleur"></canvas></div>':'<p class="unote" style="max-width:none;text-align:left">Geen data.</p>')+'</div>'+
+    '</div>'+
+    '<div class="r2">'+
+    '<div class="cc"><div class="cct">Type bediening</div>'+rankList(bedT)+'</div>'+
+    '<div class="cc"><div class="cct">Type systeem</div>'+rankList(sysT)+'</div>'+
+    '</div>';
+  if(kleurT.length)mkChart('cPiKleur',{type:'doughnut',data:{labels:kleurT.slice(0,8).map(function(x){return x[0];}),datasets:[{data:kleurT.slice(0,8).map(function(x){return x[1];}),backgroundColor:CAT,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:10}}}}});
+}
 var FD_SORT={dir:0};
 function fdDateVal(r){
   var m=(r.dtM||'').match(/^(\d{1,2})-(\d{1,2})-(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
@@ -1072,6 +1142,10 @@ function openMeetbon(ticketId){
         .then(function(parsed){
           parsed.ticketId=ticketId;parsed.fileName=att.name;
           parsed.afgeleideProvincie=enrichProvinceFromMeetbon(ticketId,parsed.adres);
+          S.meetbonCache=S.meetbonCache||{};
+          S.meetbonCache[ticketId]=parsed;
+          var piPage=document.getElementById('pg_pi');
+          if(piPage&&piPage.classList.contains('active'))renderProductInsights();
           showMeetbonModal('done',parsed);
         });
     })
