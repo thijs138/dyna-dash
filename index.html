@@ -4,13 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>raamdecoratie.com — Sales Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
-:root{--or:#F59901;--dk:#2D2D2D;--lt:#F9CD92;--pu:#9c27b0;--bl:#1565c0;--gr:#27ae60;--rd:#e74c3c;--bg:#F9F7F4;--wh:#fff;--bd:#eee;}
+:root{--or:#F59901;--dk:#2D2D2D;--lt:#F9CD92;--pu:#9c27b0;--bl:#1565c0;--gr:#27ae60;--rd:#e74c3c;--bg:#F9F7F4;--wh:#fff;--bd:#eee;
+--ink2:#52514e;--ink3:#898781;--grid:#e1e0d9;
+--good:#0ca30c;--warn:#fab219;--serious:#ec835a;--crit:#d03b3b;
+--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100;--c5:#e87ba4;--c6:#008300;--c7:#6250d6;--c8:#e34948;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"DM Sans",Arial,sans-serif;background:var(--bg);color:var(--dk);font-size:13px}
+body{font-family:"Manrope",Arial,sans-serif;background:var(--bg);color:var(--dk);font-size:13px}
 .hdr{background:var(--dk);padding:0 24px;display:flex;align-items:center;justify-content:space-between;min-height:56px;gap:10px;flex-wrap:wrap}
 .brand{font-family:"DM Mono",monospace;font-size:15px;font-weight:500;color:var(--or)}
 .bdg{padding:3px 11px;border-radius:20px;font-size:11px;font-weight:700}
@@ -41,25 +45,40 @@ body{font-family:"DM Sans",Arial,sans-serif;background:var(--bg);color:var(--dk)
 .upfill{height:100%;background:var(--or);border-radius:10px;width:0;transition:width .3s}
 .uperr{color:var(--rd);font-size:12px;background:#fdf0f0;border:1px solid #fbb;border-radius:8px;padding:10px 14px;max-width:720px;text-align:center;display:none}
 .unote{font-size:11px;color:#bbb;text-align:center;max-width:520px;line-height:1.8}
-#dashboard{display:none}
-.tabs{background:var(--wh);border-bottom:1.5px solid var(--bd);display:flex;overflow-x:auto;padding:0 16px}
-.tab{padding:10px 14px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;border-bottom:2.5px solid transparent;color:#999;white-space:nowrap;font-family:inherit;transition:color .15s}
-.tab.active{color:var(--or);border-bottom-color:var(--or)}
-.tab.tg{color:var(--gr)}.tab.tg.active{color:var(--gr);border-bottom-color:var(--gr)}
-.tab.tb{color:var(--bl)}.tab.tb.active{color:var(--bl);border-bottom-color:var(--bl)}
-.tab.tu{background:var(--or);color:var(--dk);border-radius:20px;margin:6px 4px;padding:5px 14px;font-weight:700;border-bottom:none}
-.tab:hover:not(.tu){color:var(--dk)}
+#dashboard{display:none;align-items:stretch}
+.cc{box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.sidebar{background:var(--wh);border-right:1.5px solid var(--bd);width:212px;flex:0 0 212px;overflow-y:auto;padding:10px 0 20px;display:flex;flex-direction:column;gap:1px;max-height:calc(100vh - 56px);transition:width .18s,transform .18s}
+.maincol{flex:1;min-width:0}
+#dashboard.collapsed .sidebar{width:0;flex-basis:0;padding:0;overflow:hidden;border-right:none}
+.tab{display:block;width:100%;text-align:left;padding:10px 18px;font-size:12.5px;font-weight:600;cursor:pointer;border:none;background:none;border-left:3px solid transparent;color:#999;white-space:nowrap;font-family:inherit;transition:background .12s,color .12s}
+.tab.active{color:var(--or);border-left-color:var(--or);background:#fff8ec;font-weight:700}
+.tab.tg{color:var(--gr)}.tab.tg.active{color:var(--gr);border-left-color:var(--gr);background:#f0fdf4}
+.tab.tb{color:var(--bl)}.tab.tb.active{color:var(--bl);border-left-color:var(--bl);background:#eaf2fc}
+.tab.tu{background:var(--or);color:var(--dk);border-radius:20px;margin:10px 16px 2px;padding:8px 14px;font-weight:700;border-left:none;text-align:center}
+.tab.tu:hover{background:#e08800}
+.tab:hover:not(.tu):not(.active){background:#faf9f7;color:var(--dk)}
+.sidebar-ov{display:none}
+@media(max-width:900px){
+  .sidebar{position:fixed;top:56px;left:0;bottom:0;z-index:40;transform:translateX(-100%);box-shadow:4px 0 18px rgba(0,0,0,.12);max-height:calc(100vh - 56px)}
+  #dashboard.mobile-open .sidebar{transform:translateX(0)}
+  #dashboard.collapsed .sidebar{width:212px;flex-basis:212px}
+  #dashboard.mobile-open .sidebar-ov{display:block;position:fixed;inset:56px 0 0 0;background:rgba(0,0,0,.35);z-index:35}
+}
 .page{display:none;padding:20px 24px;max-width:1300px}.page.active{display:block}
 .sec{font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#bbb;margin:20px 0 11px;display:flex;align-items:center;gap:8px}
 .sec::before{content:"";display:block;width:3px;height:13px;background:var(--or);border-radius:2px}
 .sec.sbl::before{background:var(--bl)}.sec.spu::before{background:var(--pu)}.sec.sgr::before{background:var(--gr)}
 .kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:11px;margin-bottom:20px}
-.kpi{background:var(--wh);border-radius:11px;padding:14px 16px;border:1px solid var(--bd);position:relative;overflow:hidden}
+.kpi{background:var(--wh);border-radius:11px;padding:14px 16px;border:1px solid var(--bd);position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.03);transition:box-shadow .15s,transform .15s}
+.kpi:hover{box-shadow:0 4px 14px rgba(0,0,0,.07);transform:translateY(-1px)}
 .kpi::after{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--bd)}
-.kpi.ka::after{background:var(--or)}.kpi.kg2::after{background:var(--gr)}
-.kpi.kb::after{background:var(--bl)}.kpi.kp::after{background:var(--pu)}.kpi.kr::after{background:var(--rd)}
-.klbl{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-.kval{font-size:22px;font-weight:700;color:var(--dk);line-height:1.2}
+.kpi.ka::after{background:var(--or)}.kpi.kg2::after{background:var(--good)}
+.kpi.kb::after{background:var(--bl)}.kpi.kp::after{background:var(--pu)}.kpi.kr::after{background:var(--crit)}
+.kicon{position:absolute;top:13px;right:14px;font-size:16px;opacity:.45}
+.kvrow{display:flex;align-items:flex-end;gap:8px}
+.spark{width:54px;height:20px;flex-shrink:0;margin-bottom:2px}
+.klbl{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;max-width:calc(100% - 22px)}
+.kval{font-size:23px;font-weight:800;color:var(--dk);line-height:1.2;letter-spacing:-.3px}
 .ksub{font-size:10px;color:#bbb;margin-top:3px}
 .r2{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:16px}
 .cc{background:var(--wh);border-radius:11px;padding:16px;border:1px solid var(--bd)}
@@ -69,11 +88,11 @@ body{font-family:"DM Sans",Arial,sans-serif;background:var(--bg);color:var(--dk)
 .leg span{display:flex;align-items:center;gap:4px}
 .dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
 table{width:100%;border-collapse:collapse;font-size:12px}
-thead th{background:var(--dk);color:#fff;padding:7px 9px;text-align:left;font-size:11px;font-weight:500}
-thead th.hb{background:var(--bl)}thead th.hp{background:var(--pu)}thead th.hg{background:var(--gr)}
+thead th{background:#f3f2ef;color:var(--ink2);padding:8px 9px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;border-bottom:1.5px solid var(--grid)}
+thead th.hb{background:#e8f0fb;color:#1c5cab}thead th.hp{background:#f3e9f7;color:#6a1b8f}thead th.hg{background:#e6f6ea;color:#0ca30c}
 tbody tr:nth-child(even){background:#fafafa}
 tbody tr:hover{background:#fff8ec}
-tbody td{padding:6px 9px;border-bottom:1px solid #f2f2f2}
+tbody td{padding:7px 9px;border-bottom:1px solid #f2f2f2}
 .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
 .pg{background:#e8f5e9;color:#1b5e20}.po{background:#fff3e0;color:#e65100}
 .pr{background:#fce4ec;color:#ad1457}.pd{background:var(--dk);color:var(--or)}
@@ -100,21 +119,55 @@ tbody td{padding:6px 9px;border-bottom:1px solid #f2f2f2}
 .dbm{background:var(--or);color:var(--dk);border:none;padding:10px 22px;border-radius:24px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;margin-right:8px;margin-bottom:8px}
 .dbm:hover{background:#e08800}
 @media(max-width:680px){.r2{grid-template-columns:1fr}.ugrid{grid-template-columns:1fr}.page{padding:12px}}
+.lastupd{color:#777;font-size:11px}
+.hdrbtn{background:none;border:1.5px solid #555;color:#ccc;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;font-family:inherit}
+.hdrbtn:hover{border-color:var(--or);color:var(--or)}
+.hdrbtn.spin{animation:spin .8s linear infinite}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.spinner{width:30px;height:30px;border:3px solid var(--bd);border-top-color:var(--or);border-radius:50%;animation:spin .8s linear infinite}
+.autoload{display:flex;flex-direction:column;align-items:center;gap:14px;padding:30px 0}
+.modal-ov{position:fixed;inset:0;background:rgba(20,20,20,.5);display:flex;align-items:flex-start;justify-content:center;z-index:80;padding:40px 16px;overflow-y:auto}
+.modal{background:var(--wh);border-radius:14px;padding:24px 26px;max-width:680px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+.modal-h{display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:700;margin-bottom:16px}
+.modal-x{background:none;border:none;font-size:20px;cursor:pointer;color:#999;line-height:1}
+.modal-x:hover{color:var(--dk)}
+.mlbl{display:block;font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.minput{width:100%;padding:10px 12px;border:1.5px solid var(--bd);border-radius:8px;font-family:inherit;font-size:13px;margin-bottom:4px}
+.minput:focus{outline:none;border-color:var(--or)}
+.pdftext{white-space:pre-wrap;font-family:"DM Mono",monospace;font-size:11px;max-height:40vh;overflow:auto;background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px;margin-top:6px}
+.mbhdr{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:14px;padding:12px 14px;background:#fff8ec;border-radius:10px;font-size:12px}
+.mbhdr b{display:block;font-size:13px}
+.prodtbl{width:100%;border-collapse:collapse;font-size:11.5px;margin-bottom:14px}
+.prodtbl th{background:var(--dk);color:#fff;padding:6px 8px;text-align:left;font-weight:500}
+.prodtbl td{padding:6px 8px;border-bottom:1px solid #f2f2f2}
+.prodtbl tr:nth-child(even){background:#fafafa}
+.aanv{background:#f9f9f9;border-left:3px solid var(--or);border-radius:0 8px 8px 0;padding:8px 12px;margin-bottom:8px;font-size:12px;line-height:1.5}
+.aanv b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#999;margin-bottom:2px}
+details.rawtoggle{margin-top:10px;font-size:11px;color:#999}
+details.rawtoggle summary{cursor:pointer;font-weight:600}
 </style>
 </head>
 <body>
 <div class="hdr">
-  <div class="brand">raamdecoratie.com</div>
-  <div style="display:flex;gap:8px;align-items:center">
-    <div class="sw"><div class="sd" id="sd"></div><span id="slbl">Geen data geladen</span></div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <button class="hdrbtn" id="sideToggle" onclick="toggleSidebar()" title="Menu">&#9776;</button>
+    <div class="brand">raamdecoratie.com</div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <div class="sw"><div class="sd" id="sd"></div><span id="slbl">Geen data geladen</span><span class="lastupd" id="lastUpd"></span></div>
     <span class="bdg bdg-or" id="hdrP" style="display:none"></span>
+    <button class="hdrbtn" id="refreshBtn" onclick="autoLoadSheet()" title="Vernieuw vanuit Google Sheet">&#8635;</button>
+    <button class="hdrbtn" onclick="openSettings()" title="Instellingen">&#9881;</button>
   </div>
 </div>
 <div id="upload-screen">
   <div class="uh2">&#128202; Sales Dashboard</div>
-  <div class="up">Upload je bellijst en provincie-bestand. Nieuwe maanden (Mei, Juni etc.) worden automatisch verwerkt.</div>
+  <div class="up" id="autoLoadMsg">Bellijst wordt automatisch opgehaald uit Google Sheets&#8230;</div>
+  <div class="autoload" id="autoLoadBox"><div class="spinner"></div></div>
+  <div class="uperr" id="autoLoadErr"></div>
+  <div id="manualBlock" style="display:none;flex-direction:column;align-items:center;gap:20px;width:100%">
   <div class="steps">
-    <h3>Hoe werkt het?</h3>
+    <h3>Handmatig uploaden (fallback)</h3>
     <div class="step"><div class="stn">1</div><div>Upload je <strong>bellijst XLSX</strong> &mdash; &#233;&#233;n bestand met tabbladen per maand (Januari 2026, Februari 2026 etc.) of meerdere bestanden</div></div>
     <div class="step"><div class="stn">2</div><div>Upload het <strong>provincie-bestand XLSX</strong> &mdash; kolom A = ordernummer, kolom B = provincie, per maand-tabblad (jan, feb, mrt, apr etc.)</div></div>
     <div class="step"><div class="stn">3</div><div>Klik <strong>Verwerk</strong> &mdash; alle maanden, grafieken en tabellen worden automatisch geladen</div></div>
@@ -139,15 +192,60 @@ tbody td{padding:6px 9px;border-bottom:1px solid #f2f2f2}
   <div class="upbar" id="upbar"><div class="upfill" id="upfill"></div></div>
   <div class="uperr" id="uperr"></div>
   <button class="bgo" id="bgo" onclick="processUpload()" disabled>Verwerk bestanden &#8594;</button>
+  </div>
   <div class="unote">Kevin wordt automatisch uitgefilterd &bull; Belgische provincies worden samengevoegd als &ldquo;Belgi&#235;&rdquo;</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+    <button class="mb" onclick="autoLoadSheet()">&#8635; Opnieuw ophalen uit Sheet</button>
+    <button class="mb" id="showManualBtn" onclick="showManual()">&#8679; Handmatig XLSX uploaden</button>
+  </div>
 </div>
 <div id="dashboard">
-  <div class="tabs" id="tabBar"></div>
-  <div id="pages"></div>
+  <div class="sidebar-ov" id="sidebarOv" onclick="closeSidebarMobile()"></div>
+  <nav class="sidebar" id="tabBar"></nav>
+  <div class="maincol"><div id="pages"></div></div>
+</div>
+<div id="settingsModal" class="modal-ov" style="display:none" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <div class="modal-h">&#9881;&#65039; Instellingen <button class="modal-x" onclick="closeSettings()">&times;</button></div>
+    <label class="mlbl">Google Sheet (bellijst)</label>
+    <div class="unote" style="text-align:left;margin:0 0 14px;max-width:none">Wordt automatisch opgehaald bij het openen van dit dashboard. Vereist dat de sheet gedeeld staat als &ldquo;Iedereen met de link kan bekijken&rdquo;.</div>
+    <label class="mlbl">Freshdesk meetbon proxy &mdash; API-key</label>
+    <input type="password" id="fdKeyInput" class="minput" placeholder="Bearer-key voor freshdesk-meetbon-proxy">
+    <div class="unote" style="text-align:left;margin:8px 0 14px;max-width:none">Wordt alleen lokaal in je browser bewaard (localStorage) &mdash; nooit in dit bestand opgeslagen of meegestuurd naar GitHub.</div>
+    <button class="bgo" style="padding:9px 24px;font-size:12px" onclick="saveFdKey()">Opslaan</button>
+  </div>
+</div>
+<div id="meetbonModal" class="modal-ov" style="display:none" onclick="if(event.target===this)closeMeetbon()">
+  <div class="modal">
+    <div class="modal-h"><span id="meetbonTitle">Meetbon</span><button class="modal-x" onclick="closeMeetbon()">&times;</button></div>
+    <div id="meetbonBody"></div>
+  </div>
 </div>
 <script>
 // ── globals ──────────────────────────────────────────────────────────────
-var O='#F59901',DK='#2D2D2D',L='#F9CD92',P='#ce93d8',GR='#27ae60',BL='#1565c0',RD='#e74c3c',PU='#9c27b0';
+var O='#F59901',DK='#2D2D2D',L='#F9CD92',P='#ce93d8',GR='#0ca30c',BL='#1565c0',RD='#d03b3b',PU='#9c27b0';
+// ── dataviz-skill kleurpalet: categorisch (nominale identiteit, vaste volgorde) en ordinaal (tijdsvolgorde) ──
+var CAT=['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#6250d6','#e34948'];
+var ORD_STEPS=['#86b6ef','#6da7ec','#5598e7','#3987e5','#2a78d6','#256abf','#1c5cab','#184f95','#104281','#0d366b'];
+function ordRamp(n){
+  if(n<=1)return[ORD_STEPS[ORD_STEPS.length-1]];
+  var out=[];
+  for(var i=0;i<n;i++)out.push(ORD_STEPS[Math.round(i*(ORD_STEPS.length-1)/(n-1))]);
+  return out;
+}
+function kpiIcon(lbl){
+  var l=(lbl||'').toLowerCase();
+  if(l.indexOf('conversie')>-1||l.indexOf('conv.')>-1)return'&#127919;';
+  if(l.indexOf('waarde')>-1)return'&#128176;';
+  if(l.indexOf('besteld')>-1)return'&#9989;';
+  if(l.indexOf('ingemeten')>-1||l.indexOf('metingen')>-1)return'&#128207;';
+  if(l.indexOf('benaderd')>-1||l.indexOf('contact')>-1)return'&#128222;';
+  if(l.indexOf('open kansen')>-1)return'&#128275;';
+  if(l.indexOf('nieuwe')>-1)return'&#127881;';
+  if(l.indexOf('mail')>-1)return'&#128231;';
+  if(l.indexOf('snel')>-1)return'&#9889;';
+  return'&#128202;';
+}
 var MORD=['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'];
 // Maand-detectie: herkent de Nederlandse maandnaam (voluit of afgekort, bv. "Aug 2026")
 // aan het begin van de tabbladnaam, EN telt een tabblad alleen mee als "2026" er ook
@@ -169,16 +267,22 @@ function detectMonth(sheetName){
 }
 var PSHT={'jan':'Januari','feb':'Februari','mrt':'Maart','apr':'April','mei':'Mei','jun':'Juni','jul':'Juli','aug':'Augustus','sep':'September','okt':'Oktober','nov':'November','dec':'December'};
 var BELG=['vlaanderen','brussel','provincie antwerpen','prov. antwerpen','vlaams gewest','vlaams-brabant','west-vlaanderen','oost-vlaanderen'];
-var S={bellFiles:null,provFile:null,data:null,prevRows:null,charts:{}};
+var S={bellFiles:null,provFile:null,data:null,prevRows:null,charts:{},lastLoad:null};
+// ── config ───────────────────────────────────────────────────────────────
+var SHEET_ID='1h2pNuYP4_TARdUHHXwtUjqsybew5DRSLRMpulcVQmXE';
+var SHEET_EXPORT_URL='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/export?format=xlsx';
+var FD_PROXY_BASE='https://freshdesk-meetbon-proxy.dtch.workers.dev';
+var FD_KEY_LS='rd_fd_key';
+if(window.pdfjsLib)pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 // ── percentage kleurenschaal ─────────────────────────────────────────────
 // 0-60% donkerrood · 61-70% rood · 71-75% oranje · 76-80% lichtgroen · 81-85% groen · 85%+ donkergroen
 var PSCALE=[
-  {max:60,bg:'#f5cccc',fg:'#7a1010',hex:'#8b0000'},
-  {max:70,bg:'#fbdcd7',fg:'#c0392b',hex:'#e74c3c'},
+  {max:60,bg:'#f8dcdc',fg:'#8a1f1f',hex:'#d03b3b'},
+  {max:70,bg:'#fbe3d7',fg:'#9c4420',hex:'#ec835a'},
   {max:75,bg:'#ffe6bf',fg:'#a85d00',hex:'#F59901'},
   {max:80,bg:'#e3f2d7',fg:'#5a8f3c',hex:'#8bc34a'},
-  {max:85,bg:'#d4f0dd',fg:'#1e8449',hex:'#27ae60'},
-  {max:9999,bg:'#c3e6c9',fg:'#1b5e20',hex:'#1b5e20'}
+  {max:85,bg:'#d7f0dd',fg:'#0c7a0c',hex:'#0ca30c'},
+  {max:9999,bg:'#c3e6c9',fg:'#0a5e0a',hex:'#087a08'}
 ];
 function pTier(v){v=Number(v)||0;for(var i=0;i<PSCALE.length;i++){if(v<=PSCALE[i].max)return PSCALE[i];}return PSCALE[PSCALE.length-1];}
 function pHex(v){return pTier(v).hex;}
@@ -191,6 +295,49 @@ function assignF(files,type){
 }
 function setProg(p){document.getElementById('upbar').style.display='block';document.getElementById('upfill').style.width=p+'%';}
 function showErr(m){var e=document.getElementById('uperr');e.textContent=m;e.style.display='block';}
+// ── auto-load uit Google Sheet ──────────────────────────────────────────
+function loadPrevRowsLS(){try{var s=localStorage.getItem('rd_rows');return s?JSON.parse(s):null;}catch(e){return null;}}
+function showManual(){
+  document.getElementById('autoLoadBox').style.display='none';
+  document.getElementById('autoLoadMsg').style.display='none';
+  document.getElementById('autoLoadErr').style.display='none';
+  document.getElementById('manualBlock').style.display='flex';
+}
+function setAutoStatus(state,msg){
+  var box=document.getElementById('autoLoadBox'),amsg=document.getElementById('autoLoadMsg'),err=document.getElementById('autoLoadErr'),manual=document.getElementById('manualBlock');
+  if(state==='loading'){
+    document.getElementById('upload-screen').style.display='flex';
+    document.getElementById('dashboard').style.display='none';
+    box.style.display='flex';amsg.style.display='block';amsg.textContent=msg;err.style.display='none';manual.style.display='none';
+  }else if(state==='error'){
+    box.style.display='none';amsg.style.display='block';amsg.textContent='Automatisch ophalen is niet gelukt.';
+    err.textContent=msg;err.style.display='block';manual.style.display='flex';
+  }
+}
+function autoLoadSheet(){
+  var btn=document.getElementById('refreshBtn');if(btn)btn.classList.add('spin');
+  setAutoStatus('loading','Bellijst wordt opgehaald uit Google Sheets…');
+  var prevRows=S.data?S.data.rows.slice():loadPrevRowsLS();
+  fetch(SHEET_EXPORT_URL,{cache:'no-store'})
+    .then(function(r){if(!r.ok)throw new Error('server gaf status '+r.status);return r.arrayBuffer();})
+    .then(function(buf){var wb=XLSX.read(buf,{type:'array',cellDates:true});return parseBell([wb]);})
+    .then(function(rows){
+      if(S.provFile)return readWB(S.provFile).then(function(wb){attachProv(rows,wb);return rows;});
+      return rows;
+    })
+    .then(function(rows){
+      try{localStorage.setItem('rd_rows',JSON.stringify(rows.slice(0,3000)));}catch(e){}
+      S.prevRows=prevRows;
+      S.data=buildDataset(rows,prevRows);
+      S.lastLoad=new Date();
+      if(btn)btn.classList.remove('spin');
+      renderDashboard();
+    })
+    .catch(function(err){
+      if(btn)btn.classList.remove('spin');
+      setAutoStatus('error','Kon de Google Sheet niet automatisch ophalen ('+err.message+'). Controleer of de sheet gedeeld staat als “Iedereen met de link kan bekijken”, of upload de bellijst hieronder handmatig.');
+    });
+}
 function processUpload(){
   document.getElementById('bgo').disabled=true;
   document.getElementById('uperr').style.display='none';
@@ -207,6 +354,7 @@ function processUpload(){
       setProg(80);
       try{localStorage.setItem('rd_rows',JSON.stringify(rows.slice(0,3000)));}catch(e){}
       S.data=buildDataset(rows,S.prevRows);
+      S.lastLoad=new Date();
       setProg(100);
       setTimeout(renderDashboard,300);
     })
@@ -235,7 +383,7 @@ function parseBell(wbs){
         if(!adv)return;
         adv=adv.charAt(0).toUpperCase()+adv.slice(1).toLowerCase();
         if(adv.toLowerCase()==='kevin')return;
-        rows.push({ordr:cStr(r[cm.ordr]),klant:cStr(r[cm.klant]),adv:adv,waarde:cNum(r[cm.waarde]),besteld:cStr(r[cm.besteld]),dtM:cStr(r[cm.dtM]),dtB:cStr(r[cm.dtB]),bom:cStr(r[cm.bom]),reden:cStr(r[cm.reden]),maand:maand,prov:null,isB:!!cStr(r[cm.besteld]),hasC:!!cStr(r[cm.dtB])});
+        rows.push({ordr:cStr(r[cm.ordr]),klant:cStr(r[cm.klant]),adv:adv,waarde:cNum(r[cm.waarde]),besteld:cStr(r[cm.besteld]),dtM:cStr(r[cm.dtM]),dtB:cStr(r[cm.dtB]),bom:cStr(r[cm.bom]),reden:cStr(r[cm.reden]),ticket:cStr(r[cm.ticket]),maand:maand,prov:null,isB:!!cStr(r[cm.besteld]),hasC:!!cStr(r[cm.dtB])});
       });
     });
   });
@@ -244,7 +392,7 @@ function parseBell(wbs){
 }
 function detectCols(keys){
   var m={};
-  var p={ordr:/ordernummer|meetservice/i,klant:/klant|naam/i,adv:/adviseur/i,waarde:/waarde|prijs/i,besteld:/besteld/i,dtM:/datum.*met|meetdatum/i,dtB:/datum.*bell|bel.*datum/i,bom:/bel.*mail|mail.*bel/i,reden:/reden/i};
+  var p={ordr:/ordernummer|meetservice/i,klant:/klant|naam/i,adv:/adviseur/i,waarde:/waarde|prijs/i,besteld:/besteld/i,dtM:/datum.*met|meetdatum/i,dtB:/datum.*bell|bel.*datum/i,bom:/bel.*mail|mail.*bel/i,reden:/reden/i,ticket:/ticket/i};
   keys.forEach(function(k){Object.entries(p).forEach(function(e){if(!m[e[0]]&&e[1].test(k))m[e[0]]=k;});});
   if(!m.ordr&&keys[2])m.ordr=keys[2];
   // Adviseur-kolom NIET blind op positie 4 gokken: als een tabblad geen "Adviseur"
@@ -337,9 +485,10 @@ function r1(v){return Math.round(v*10)/10;}
 function renderDashboard(){
   var D=S.data;
   document.getElementById('upload-screen').style.display='none';
-  document.getElementById('dashboard').style.display='block';
+  document.getElementById('dashboard').style.display='flex';
   document.getElementById('sd').classList.add('on');
   document.getElementById('slbl').textContent=D.months.join(' + ')+' geladen';
+  var lu=document.getElementById('lastUpd');if(lu)lu.textContent=S.lastLoad?(' · bijgewerkt '+S.lastLoad.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})):'';
   var hp=document.getElementById('hdrP');hp.style.display='';hp.textContent=D.months[0]+' – '+D.months[D.months.length-1]+' 2026';
   Object.values(S.charts).forEach(function(c){try{c.destroy();}catch(e){}});
   S.charts={};
@@ -361,6 +510,7 @@ function buildTabs(D){
   ];
   D.months.forEach(function(m){defs.push({id:'m_'+m,lbl:'&#128995; '+m,cls:''}); });
   if(D.NC.length)defs.push({id:'nc',lbl:'&#128338; Nieuwe best.',cls:'tb'});
+  if(fdTargetMonths().filter(function(m){return D.months.indexOf(m)>-1;}).length)defs.push({id:'fd',lbl:'&#128206; Meetbonnen',cls:''});
   defs.push({id:'dl',lbl:'&#8659;&#65039; Downloads',cls:''});
   defs.push({id:'up',lbl:'&#8679; Nieuw bestand',cls:'tu'});
   bar.innerHTML='';
@@ -373,10 +523,23 @@ function buildTabs(D){
     bar.appendChild(btn);
   });
 }
+function toggleSidebar(){
+  var d=document.getElementById('dashboard');
+  if(window.innerWidth<=900){
+    d.classList.toggle('mobile-open');
+  }else{
+    var collapsed=d.classList.toggle('collapsed');
+    try{localStorage.setItem('rd_sidebar_collapsed',collapsed?'1':'0');}catch(e){}
+  }
+}
+function closeSidebarMobile(){document.getElementById('dashboard').classList.remove('mobile-open');}
+(function(){try{if(localStorage.getItem('rd_sidebar_collapsed')==='1'&&window.innerWidth>900)document.getElementById('dashboard').classList.add('collapsed');}catch(e){}})();
 function switchPage(id,el){
+  closeSidebarMobile();
   if(id==='up'){
     document.getElementById('upload-screen').style.display='flex';
     document.getElementById('dashboard').style.display='none';
+    showManual();
     return;
   }
   document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -414,7 +577,7 @@ function gc(c){return pHex(c);}
 function buildAllPages(D){
   document.getElementById('pages').innerHTML='';
   var M=D.months,AN=D.adviseurs,MD=D.MD,AD=D.AD,PV=D.PV,NC=D.NC;
-  var MCOLS=[O,DK,L,P,GR,BL,PU,'#ff9800','#009688','#795548','#607d8b','#e91e63'];
+  var MCOLS=ordRamp(M.length);
   var tN=M.reduce(function(s,m){return s+MD[m].n;},0);
   var tB=M.reduce(function(s,m){return s+MD[m].b;},0);
   var tWi=M.reduce(function(s,m){return s+MD[m].wi;},0);
@@ -432,12 +595,12 @@ function buildAllPages(D){
   addPage('ov',
     '<div class="sec">Totaal '+M[0]+' t/m '+lastM+'</div>'+
     '<div class="kg">'+
-    kpi('ka',fN(tN),'Totaal ingemeten',M.join(' + '))+
-    kpi('ka',fN(tB),'Totaal besteld','van '+fN(tN)+' metingen')+
-    kpi('kg2',tC+'%','Conversie totaal','alle maanden')+
-    kpi('',ef(tWi),'Waarde ingemeten','','font-size:18px')+
-    kpi('',ef(tWb),'Waarde besteld','','font-size:18px')+
-    kpi(lastD.conv<q1gem?'kr':'kg2','<span style="color:'+pHex(lastD.conv)+'">'+lastD.conv+'%</span>',lastM+' conversie',dh(lastD.conv,q1gem)+' vs Q1 gem')+
+    kpi('ka',fN(tN),'Totaal ingemeten',M.join(' + '),null,M.map(function(m){return MD[m].n;}))+
+    kpi('ka',fN(tB),'Totaal besteld','van '+fN(tN)+' metingen',null,M.map(function(m){return MD[m].b;}))+
+    kpi('kg2',tC+'%','Conversie totaal','alle maanden',null,M.map(function(m){return MD[m].conv;}))+
+    kpi('',ef(tWi),'Waarde ingemeten','','font-size:18px',M.map(function(m){return MD[m].wi;}))+
+    kpi('',ef(tWb),'Waarde besteld','','font-size:18px',M.map(function(m){return MD[m].wb;}))+
+    kpi(lastD.conv<q1gem?'kr':'kg2','<span style="color:'+pHex(lastD.conv)+'">'+lastD.conv+'%</span>',lastM+' conversie',dh(lastD.conv,q1gem)+' vs Q1 gem',null,M.map(function(m){return MD[m].conv;}))+
     '</div>'+
     (lastD.conv<q1gem?'<div class="ibox iwarn"><div class="it">&#9888;&#65039; '+lastM+' conversie '+lastD.conv+'% &mdash; '+r1(q1gem-lastD.conv)+' ppt onder Q1 gemiddelde ('+q1gem+'%)</div><p>Gerichte nabellen-opvolging gewenst.</p></div>':'')+
     '<div class="r2">'+
@@ -632,6 +795,22 @@ function buildAllPages(D){
     );
     window._ncCache={NC:NC,ncMail:ncMail,ncBel:ncBel,M:M};
   }
+  // ── MEETBONNEN (Freshdesk, read-only) ───────────────────────────────────
+  var fdM=fdTargetMonths().filter(function(m){return D.months.indexOf(m)>-1;});
+  if(fdM.length){
+    var fdRows=D.rows.filter(function(r){return fdM.indexOf(r.maand)>-1&&r.ticket;});
+    var fdTr=fdRows.map(function(r){
+      return '<tr><td><strong>'+(r.klant||'—')+'</strong></td><td>'+(r.ordr||'—')+'</td><td>'+r.adv+'</td><td>'+r.maand+'</td><td>'+r.ticket+'</td>'+
+      '<td><button class="mb" onclick="openMeetbon(\''+r.ticket+'\')">&#128196; Bekijk meetbon</button></td></tr>';
+    }).join('');
+    addPage('fd',
+      '<div class="sec">Meetbonnen &mdash; '+fdM.join(' &amp; ')+'</div>'+
+      '<div class="ibox ibl"><div class="it">&#8505;&#65039; Freshdesk meetbon-koppeling (read-only)</div><p>Haalt de interne meetbon (PDF) per ticket op en leest de tekst uit. Alleen voor de huidige en vorige maand, om het aantal Freshdesk-aanroepen laag te houden. Vereist een API-key &mdash; zie &#9881;&#65039; Instellingen.</p></div>'+
+      '<div class="scr"><table><thead><tr><th>Klant</th><th>Order</th><th>Adviseur</th><th>Maand</th><th>Ticket</th><th></th></tr></thead><tbody>'+
+      (fdTr||'<tr><td colspan="6" style="color:#999">Geen rijen met ticketnummer gevonden voor deze maanden.</td></tr>')+
+      '</tbody></table></div>'
+    );
+  }
   // ── DOWNLOADS ──────────────────────────────────────────────────────────
   var dlB=AN.map(function(a){return '<div class="db" onclick="dlAdv(\''+a+'\')"><div style="font-size:22px">&#128196;</div><div>'+a+'</div></div>';}).join('');
   addPage('dl',
@@ -645,8 +824,23 @@ function buildAllPages(D){
   // init provincie na opbouw
   setTimeout(function(){selProv('Totaal',document.querySelector('.mb.active'));},150);
 }
-function kpi(cls,val,lbl,sub,vstyle){
-  return '<div class="kpi '+cls+'"><div class="klbl">'+lbl+'</div><div class="kval"'+(vstyle?' style="'+vstyle+'"':'')+'>'+val+'</div>'+(sub?'<div class="ksub">'+sub+'</div>':'')+'</div>';
+function sparkSvg(vals){
+  if(!vals||vals.length<2)return'';
+  var w=54,h=20,pad=2;
+  var min=Math.min.apply(null,vals),max=Math.max.apply(null,vals);
+  var range=(max-min)||1;
+  var pts=vals.map(function(v,i){
+    var x=pad+i*(w-2*pad)/(vals.length-1);
+    var y=h-pad-((v-min)/range)*(h-2*pad);
+    return x.toFixed(1)+','+y.toFixed(1);
+  }).join(' ');
+  var col=vals[vals.length-1]>=vals[0]?'#0ca30c':'#d03b3b';
+  return '<svg class="spark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function kpi(cls,val,lbl,sub,vstyle,spark){
+  return '<div class="kpi '+cls+'"><div class="kicon">'+kpiIcon(lbl)+'</div><div class="klbl">'+lbl+'</div>'+
+    '<div class="kvrow"><div class="kval"'+(vstyle?' style="'+vstyle+'"':'')+'>'+val+'</div>'+(spark?sparkSvg(spark):'')+'</div>'+
+    (sub?'<div class="ksub">'+sub+'</div>':'')+'</div>';
 }
 // ── CHARTS ────────────────────────────────────────────────────────────────
 function mkChart(id,cfg){
@@ -657,7 +851,7 @@ function mkChart(id,cfg){
 }
 function initMainCharts(D){
   var M=D.months,AN=D.adviseurs,MD=D.MD,AD=D.AD;
-  var MCOLS=[O,DK,L,P,GR,BL,PU,'#ff9800','#009688','#795548','#607d8b','#e91e63'];
+  var MCOLS=ordRamp(M.length);
   var q1M=M.slice(0,Math.min(3,M.length));
   var q1g=q1M.length?r1(q1M.reduce(function(s,m){return s+MD[m].conv;},0)/q1M.length):0;
   mkChart('cConvBar',{type:'bar',data:{labels:M,datasets:[
@@ -673,7 +867,7 @@ function initMainCharts(D){
   mkChart('cNab',{type:'bar',data:{labels:M,datasets:[{data:M.map(function(m){return MD[m].nc;}),backgroundColor:M.map(function(_,i){return MCOLS[i%MCOLS.length];}),borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){var m=M[ctx.dataIndex];return ctx.raw+'% ('+MD[m].nb+'/'+MD[m].nr+')';}}}},scales:{y:{min:0,max:60,grid:{color:'#f0f0f0'},ticks:{callback:function(v){return v+'%';}}}}}});
   var allRed={};M.forEach(function(m){Object.entries(MD[m].red||{}).forEach(function(e){allRed[e[0]]=(allRed[e[0]]||0)+e[1];});});
   var rs=Object.entries(allRed).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
-  mkChart('cReden',{type:'doughnut',data:{labels:rs.map(function(x){return x[0].length>24?x[0].slice(0,24)+'...':x[0];}),datasets:[{data:rs.map(function(x){return x[1];}),backgroundColor:[DK,O,RD,'#95a5a6',GR,L,'#9b59b6',BL],borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:10}}}}});
+  mkChart('cReden',{type:'doughnut',data:{labels:rs.map(function(x){return x[0].length>24?x[0].slice(0,24)+'...':x[0];}),datasets:[{data:rs.map(function(x){return x[1];}),backgroundColor:CAT,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:10}}}}});
 }
 function initNab2Charts(D){
   var Dx=D||S.data;if(!Dx)return;
@@ -771,9 +965,9 @@ function buildAdvHTML(adv){
   var mJ=JSON.stringify(M);
   var diffCol=diff>=0?GR:RD;
   return '<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+adv+' — Dashboard</title>'+
-  '<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@500&display=swap" rel="stylesheet">'+
+  '<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap" rel="stylesheet">'+
   '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></scr'+'ipt>'+
-  '<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:"DM Sans",Arial,sans-serif;background:#F9F7F4;color:#2D2D2D;font-size:13px}.hdr{background:#2D2D2D;padding:0 22px;display:flex;align-items:center;justify-content:space-between;min-height:54px;gap:10px;flex-wrap:wrap}.brand{font-family:"DM Mono",monospace;font-size:14px;font-weight:500;color:#F59901}.nb{background:#F59901;color:#2D2D2D;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700}.tabs{background:#fff;border-bottom:1.5px solid #eee;display:flex;overflow-x:auto;padding:0 16px}.tab{padding:10px 15px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;border-bottom:2.5px solid transparent;color:#999;white-space:nowrap;font-family:inherit}.tab.active{color:#F59901;border-bottom-color:#F59901}.page{display:none;padding:18px 22px;max-width:1100px}.page.active{display:block}.sec{font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#bbb;margin:18px 0 10px;display:flex;align-items:center;gap:8px}.sec::before{content:"";display:block;width:3px;height:13px;background:#F59901;border-radius:2px}.kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:18px}.kpi{background:#fff;border-radius:11px;padding:14px 16px;border:1px solid #eee;position:relative;overflow:hidden}.kpi::after{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:#eee}.kpi.ka::after{background:#F59901}.kpi.kg::after{background:#27ae60}.kpi.kr::after{background:#e74c3c}.klbl{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}.kval{font-size:22px;font-weight:700;color:#2D2D2D;line-height:1.2}.ksub{font-size:10px;color:#bbb;margin-top:3px}.r2{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:16px}.cc{background:#fff;border-radius:11px;padding:16px;border:1px solid #eee}.cc.full{grid-column:1/-1}.cct{font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px}table{width:100%;border-collapse:collapse;font-size:12px}thead th{background:#2D2D2D;color:#fff;padding:7px 9px;text-align:left;font-size:11px;font-weight:500}tbody tr:nth-child(even){background:#fafafa}tbody td{padding:6px 9px;border-bottom:1px solid #f2f2f2}.tr-tot td{border-top:2px solid #2D2D2D;background:#f4f4f4!important;font-weight:700}.tl{margin-top:10px;padding-top:8px;border-top:1.5px dashed #F59901;font-size:11px;color:#F59901;font-weight:700}.scr{overflow-x:auto;margin-bottom:14px}@media(max-width:640px){.r2{grid-template-columns:1fr}.page{padding:12px}}</style>'+
+  '<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:"Manrope",Arial,sans-serif;background:#F9F7F4;color:#2D2D2D;font-size:13px}.hdr{background:#2D2D2D;padding:0 22px;display:flex;align-items:center;justify-content:space-between;min-height:54px;gap:10px;flex-wrap:wrap}.brand{font-family:"DM Mono",monospace;font-size:14px;font-weight:500;color:#F59901}.nb{background:#F59901;color:#2D2D2D;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700}.tabs{background:#fff;border-bottom:1.5px solid #eee;display:flex;overflow-x:auto;padding:0 16px}.tab{padding:10px 15px;font-size:12px;font-weight:600;cursor:pointer;border:none;background:none;border-bottom:2.5px solid transparent;color:#999;white-space:nowrap;font-family:inherit;transition:color .15s}.tab:hover{color:#2D2D2D}.tab.active{color:#F59901;border-bottom-color:#F59901}.page{display:none;padding:18px 22px;max-width:1100px}.page.active{display:block}.sec{font-size:10px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:#bbb;margin:18px 0 10px;display:flex;align-items:center;gap:8px}.sec::before{content:"";display:block;width:3px;height:13px;background:#F59901;border-radius:2px}.kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:18px}.kpi{background:#fff;border-radius:11px;padding:14px 16px;border:1px solid #eee;position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.03)}.kpi::after{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:#eee}.kpi.ka::after{background:#F59901}.kpi.kg::after{background:#0ca30c}.kpi.kr::after{background:#d03b3b}.klbl{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}.kval{font-size:22px;font-weight:700;color:#2D2D2D;line-height:1.2}.ksub{font-size:10px;color:#bbb;margin-top:3px}.r2{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:16px}.cc{background:#fff;border-radius:11px;padding:16px;border:1px solid #eee;box-shadow:0 1px 2px rgba(0,0,0,.03)}.cc.full{grid-column:1/-1}.cct{font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.5px;margin-bottom:11px}table{width:100%;border-collapse:collapse;font-size:12px}thead th{background:#f3f2ef;color:#52514e;padding:8px 9px;text-align:left;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;border-bottom:1.5px solid #e1e0d9}tbody tr:nth-child(even){background:#fafafa}tbody td{padding:7px 9px;border-bottom:1px solid #f2f2f2}.tr-tot td{border-top:2px solid #2D2D2D;background:#f4f4f4!important;font-weight:700}.tl{margin-top:10px;padding-top:8px;border-top:1.5px dashed #F59901;font-size:11px;color:#F59901;font-weight:700}.scr{overflow-x:auto;margin-bottom:14px}@media(max-width:640px){.r2{grid-template-columns:1fr}.page{padding:12px}}</style>'+
   '</head><body>'+
   '<div class="hdr"><div class="brand">raamdecoratie.com</div><div class="nb">'+adv+'</div><span style="font-size:11px;color:#888">'+M[0]+' – '+M[M.length-1]+'</span></div>'+
   '<div class="tabs"><button class="tab active" onclick="sp(\'ov\',this)">📊 Overzicht</button><button class="tab" onclick="sp(\'mn\',this)">📅 Per maand</button><button class="tab" onclick="sp(\'rg\',this)">🗺️ Regio\'s</button><button class="tab" onclick="sp(\'nb\',this)">📞 Nabellen</button></div>'+
@@ -808,12 +1002,200 @@ function buildAdvHTML(adv){
   'new Chart(document.getElementById("cPv"),{type:"bar",data:{labels:PD.map(function(x){return x.p;}),datasets:[{data:PD.map(function(x){return x.c;}),backgroundColor:PD.map(function(x){return pHex(x.c);})}]},options:{indexAxis:"y",responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(ctx){return PD[ctx.dataIndex].c+"% ("+PD[ctx.dataIndex].b+"/"+PD[ctx.dataIndex].n+")";}}}},scales:{x:{min:0,max:110,ticks:{callback:function(v){return v+"%";}},grid:{color:"#f0f0f0"}},y:{ticks:{autoSkip:false}}}}});'+
   'new Chart(document.getElementById("cNb"),{type:"bar",data:{labels:M,datasets:[{data:NAB,backgroundColor:O,borderRadius:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:0,max:60,grid:{color:"#f0f0f0"},ticks:{callback:function(v){return v+"%";}}}}}});'+
   'var rs=Object.entries(RD).sort(function(a,b){return b[1]-a[1];}).slice(0,8);'+
-  'new Chart(document.getElementById("cRd"),{type:"doughnut",data:{labels:rs.map(function(x){return x[0].length>22?x[0].slice(0,22)+"...":x[0];}),datasets:[{data:rs.map(function(x){return x[1];}),backgroundColor:["#2D2D2D","#F59901","#e74c3c","#95a5a6","#27ae60","#F9CD92","#9b59b6","#3498db"],borderWidth:2,borderColor:"#fff"}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{font:{size:10},boxWidth:10}}}}});'+
+  'new Chart(document.getElementById("cRd"),{type:"doughnut",data:{labels:rs.map(function(x){return x[0].length>22?x[0].slice(0,22)+"...":x[0];}),datasets:[{data:rs.map(function(x){return x[1];}),backgroundColor:["#2a78d6","#eb6834","#1baf7a","#eda100","#e87ba4","#008300","#6250d6","#e34948"],borderWidth:2,borderColor:"#fff"}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:"right",labels:{font:{size:10},boxWidth:10}}}}});'+
   '</scr'+'ipt></body></html>';
 }
 function dlAdv(adv){var html=buildAdvHTML(adv);var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));a.download=adv.toLowerCase()+'_dashboard.html';a.click();}
 function dlAll(){S.data.adviseurs.forEach(function(a,i){setTimeout(function(){dlAdv(a);},i*500);});}
 function dlSelf(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([document.documentElement.outerHTML],{type:'text/html;charset=utf-8'}));a.download='index.html';a.click();}
+// ── instellingen (Freshdesk API-key, alleen lokaal) ─────────────────────
+function getFdKey(){try{return localStorage.getItem(FD_KEY_LS)||'';}catch(e){return '';}}
+function openSettings(){document.getElementById('fdKeyInput').value=getFdKey();document.getElementById('settingsModal').style.display='flex';}
+function closeSettings(){document.getElementById('settingsModal').style.display='none';}
+function saveFdKey(){
+  var v=document.getElementById('fdKeyInput').value.trim();
+  try{if(v)localStorage.setItem(FD_KEY_LS,v);else localStorage.removeItem(FD_KEY_LS);}catch(e){}
+  closeSettings();
+}
+// ── Freshdesk meetbon-koppeling (read-only, client-side) ────────────────
+function fdTargetMonths(){var now=new Date();return[MORD[(now.getMonth()+11)%12],MORD[now.getMonth()]];}
+function closeMeetbon(){document.getElementById('meetbonModal').style.display='none';}
+function escapeHtml(s){return String(s==null?'':s).replace(/[&<>]/g,function(c){return c==='&'?'&amp;':c==='<'?'&lt;':'&gt;';});}
+function showMeetbonModal(state,data){
+  var ov=document.getElementById('meetbonModal'),h=document.getElementById('meetbonTitle'),body=document.getElementById('meetbonBody');
+  ov.style.display='flex';
+  if(state==='loading'){h.textContent='Meetbon';body.innerHTML='<div class="unote" style="max-width:none;text-align:left">'+escapeHtml(data)+'</div>';}
+  else if(state==='error'){h.textContent='Meetbon — fout';body.innerHTML='<div class="uperr" style="display:block">'+escapeHtml(data)+'</div>';}
+  else if(state==='done'){h.textContent='Meetbon — ticket '+escapeHtml(data.ticketId);body.innerHTML=renderMeetbon(data);}
+}
+function openMeetbon(ticketId){
+  var key=getFdKey();
+  if(!key){showMeetbonModal('error','Nog geen Freshdesk API-key ingesteld. Open ⚙️ Instellingen om er een op te slaan.');return;}
+  showMeetbonModal('loading','Meetbon ophalen voor ticket '+ticketId+'…');
+  fetch(FD_PROXY_BASE+'/ticket/'+encodeURIComponent(ticketId)+'/meetbon',{headers:{Authorization:'Bearer '+key}})
+    .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status+' bij ophalen bijlage-lijst');return r.json();})
+    .then(function(info){
+      var att=(info.attachments||[]).find(function(a){return /_intern/i.test(a.name||'');});
+      if(!att)throw new Error('Geen "_intern" meetbon gevonden voor dit ticket.');
+      return fetch(FD_PROXY_BASE+'/ticket/'+encodeURIComponent(ticketId)+'/attachment/'+encodeURIComponent(att.id),{headers:{Authorization:'Bearer '+key}})
+        .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status+' bij downloaden PDF');return r.arrayBuffer();})
+        .then(function(buf){return parseMeetbon(buf);})
+        .then(function(parsed){
+          parsed.ticketId=ticketId;parsed.fileName=att.name;
+          parsed.afgeleideProvincie=enrichProvinceFromMeetbon(ticketId,parsed.adres);
+          showMeetbonModal('done',parsed);
+        });
+    })
+    .catch(function(err){showMeetbonModal('error',err.message);});
+}
+function renderMeetbon(p){
+  var h=p.header||{};
+  var top='<div class="mbhdr">'+
+    (h.adviseur?'<div><b>'+escapeHtml(h.adviseur)+'</b>adviseur</div>':'')+
+    (h.datum?'<div><b>'+escapeHtml(h.datum)+'</b>datum meting</div>':'')+
+    (h.aanvraagCode?'<div><b>'+escapeHtml(h.aanvraagCode)+'</b>meetservice-aanvraag</div>':'')+
+    '<div><b>'+(p.producten?p.producten.length:0)+'</b>producten</div>'+
+    (p.adres&&p.adres.plaats?'<div><b>'+escapeHtml(p.adres.plaats)+' ('+escapeHtml(p.adres.postcode)+')</b>adres'+(p.afgeleideProvincie?' — '+escapeHtml(p.afgeleideProvincie):'')+'</div>':'')+
+    '</div>'+
+    (p.afgeleideProvincie?'<p class="unote" style="max-width:none;text-align:left;margin-bottom:10px">Provincie "'+escapeHtml(p.afgeleideProvincie)+'" automatisch afgeleid uit de postcode en aangevuld in de Provincie-tab (benadering, geen harde grens).</p>':'');
+  var prodRows=(p.producten||[]).map(function(pr){
+    return '<tr><td>'+escapeHtml(pr.nr)+'</td><td>'+escapeHtml(pr.aantal)+'</td><td>'+escapeHtml(pr.naam)+'</td><td>'+escapeHtml(pr.kleur)+'</td>'+
+    '<td>'+escapeHtml(pr.breedte)+' &times; '+escapeHtml(pr.hoogte)+'</td><td>'+escapeHtml(pr.bediening)+'</td><td>'+escapeHtml(pr.systeem)+'</td>'+
+    '<td>'+escapeHtml(pr.ruimte)+'</td><td style="font-size:11px;color:#777">'+escapeHtml(pr.montage)+(pr.montage&&pr.opmerkingen?' — ':'')+escapeHtml(pr.opmerkingen)+'</td></tr>';
+  }).join('');
+  var prodTbl=p.producten&&p.producten.length?'<table class="prodtbl"><thead><tr><th>#</th><th>Aantal</th><th>Product</th><th>Kleur</th><th>Afmeting</th><th>Bediening</th><th>Systeem</th><th>Ruimte</th><th>Montage / opm.</th></tr></thead><tbody>'+prodRows+'</tbody></table>':'<p class="unote" style="max-width:none;text-align:left">Geen producttabel herkend in de PDF-tekst.</p>';
+  var a=p.aanvullend||{};
+  var aanv=['wensen','opmerkingenAfspraak','montage'].map(function(k){
+    if(!a[k])return'';
+    var lbl=k==='wensen'?'Speciale wensen productie':k==='opmerkingenAfspraak'?'Opmerkingen over de afspraak':'Bijzonderheden voor montage';
+    return '<div class="aanv"><b>'+lbl+'</b>'+escapeHtml(a[k])+'</div>';
+  }).join('');
+  return top+prodTbl+aanv+
+    '<details class="rawtoggle"><summary>Ruwe tekst-extractie tonen</summary><div class="pdftext">'+escapeHtml(p.raw)+'</div></details>';
+}
+// ── PDF-tekst extractie & meetbon-parsing (pdf.js, client-side) ─────────
+function pageTextLines(page){
+  return page.getTextContent().then(function(tc){
+    var lines=[],cur=null,curY=null;
+    tc.items.forEach(function(it){
+      var y=it.transform[5];
+      if(curY===null||Math.abs(y-curY)>2){
+        if(cur!==null)lines.push(cur.trim());
+        cur=it.str;curY=y;
+      }else{
+        cur+=(cur&&!/\s$/.test(cur)&&it.str&&!/^\s/.test(it.str)?' ':'')+it.str;
+      }
+    });
+    if(cur!==null)lines.push(cur.trim());
+    return lines.filter(Boolean);
+  });
+}
+var PROD_LABELS=['Aantal','Productnaam','Kleur','Breedte','Hoogte','Type bediening','Type systeem','Kleur systeem','Speciale montage','Ruimte in huis','Opmerkingen'];
+function labelKey(lbl){
+  return {Aantal:'aantal',Productnaam:'naam',Kleur:'kleur',Breedte:'breedte',Hoogte:'hoogte','Type bediening':'bediening','Type systeem':'systeem','Kleur systeem':'kleurSysteem','Speciale montage':'montage','Ruimte in huis':'ruimte'}[lbl]||lbl;
+}
+function parseProductBlock(num,text){
+  var lines=text.split('\n').map(function(l){return l.trim();}).filter(Boolean);
+  var obj={nr:num};
+  PROD_LABELS.forEach(function(lbl){
+    var li=lines.indexOf(lbl);
+    if(li===-1||li+1>=lines.length)return;
+    if(lbl==='Opmerkingen'){
+      var rest=lines.slice(li+1);
+      var cut=rest.findIndex(function(l){return PROD_LABELS.indexOf(l)>-1||/^Product\s+\d+/i.test(l);});
+      obj.opmerkingen=(cut>-1?rest.slice(0,cut):rest).join(' ').trim();
+    }else{
+      obj[labelKey(lbl)]=lines[li+1];
+    }
+  });
+  return obj;
+}
+function parseHeader(fullText){
+  var out={};
+  var m1=fullText.match(/Je bent op ([^,]+?) geholpen door onze adviseur ([^.\n]+)\./i);
+  if(m1){out.datum=m1[1].trim();out.adviseur=m1[2].trim();}
+  var m2=fullText.match(/Meetservice aanvraag\s*([A-Za-z0-9-]+)/i);
+  if(m2)out.aanvraagCode=m2[1].trim();
+  return out;
+}
+// Adres staat op pagina 1 na de klantgegevens: straat+huisnr, dan "postcode plaats" aan elkaar.
+function parseAddress(pagesLines){
+  var page1=pagesLines[0]||[];
+  for(var i=1;i<page1.length;i++){
+    var m=page1[i].match(/^(\d{4})\s?([A-Z]{2})\s+(.+)$/);
+    if(m)return{straat:page1[i-1]||null,postcode:m[1]+' '+m[2],pc4:m[1],plaats:m[3].trim()};
+  }
+  return null;
+}
+// Benadering op basis van de eerste 4 cijfers van de postcode (PC4). Provinciegrenzen
+// volgen de postcode-indeling niet exact, dus bij grensgevallen kan dit afwijken —
+// gebruik dit als praktische aanvulling, niet als harde waarheid.
+var PC_PROV=[
+  {min:1000,max:1299,p:'Noord-Holland'},{min:1300,max:1339,p:'Flevoland'},{min:1340,max:1999,p:'Noord-Holland'},
+  {min:2000,max:2999,p:'Zuid-Holland'},{min:3000,max:3449,p:'Zuid-Holland'},{min:3450,max:3999,p:'Utrecht'},
+  {min:4000,max:4299,p:'Utrecht'},{min:4300,max:4699,p:'Zeeland'},{min:4700,max:5729,p:'Noord-Brabant'},
+  {min:5730,max:6499,p:'Limburg'},{min:6500,max:7399,p:'Gelderland'},{min:7400,max:7699,p:'Overijssel'},
+  {min:7700,max:7799,p:'Overijssel'},{min:7800,max:7999,p:'Drenthe'},{min:8000,max:8299,p:'Overijssel'},
+  {min:8300,max:8399,p:'Flevoland'},{min:8400,max:9299,p:'Friesland'},{min:9300,max:9599,p:'Drenthe'},
+  {min:9600,max:9999,p:'Groningen'}
+];
+function pc4ToProvince(pc4){
+  var n=parseInt(pc4,10);
+  if(isNaN(n))return null;
+  for(var i=0;i<PC_PROV.length;i++){if(n>=PC_PROV[i].min&&n<=PC_PROV[i].max)return PC_PROV[i].p;}
+  return null;
+}
+// Vult de provincie aan voor bellijst-rijen van dit ticket, alleen als er nog geen
+// (handmatig geüploade) provincie bekend is — die blijft leidend.
+function enrichProvinceFromMeetbon(ticketId,adres){
+  if(!S.data||!adres||!adres.pc4)return null;
+  var prov=pc4ToProvince(adres.pc4);
+  if(!prov)return null;
+  var changed=false;
+  S.data.rows.forEach(function(r){if(r.ticket===ticketId&&!r.prov){r.prov=prov;changed=true;}});
+  if(changed){
+    var activeBtn=document.querySelector('.tab.active'),activeId=activeBtn?activeBtn.getAttribute('data-id'):null;
+    S.data=buildDataset(S.data.rows,S.prevRows);
+    renderDashboard();
+    if(activeId){var btn=document.querySelector('.tab[data-id="'+activeId+'"]');if(btn)switchPage(activeId,btn);}
+  }
+  return prov;
+}
+function parseAanvullend(fullText){
+  var heads=['Speciale wensen productie','Opmerkingen over de afspraak','Bijzonderheden voor montage'];
+  var keys={'Speciale wensen productie':'wensen','Opmerkingen over de afspraak':'opmerkingenAfspraak','Bijzonderheden voor montage':'montage'};
+  var res={};
+  heads.forEach(function(h){
+    var idx=fullText.indexOf(h);
+    if(idx===-1)return;
+    var start=idx+h.length,end=fullText.length;
+    heads.forEach(function(h2){if(h2===h)return;var i2=fullText.indexOf(h2,start);if(i2>-1&&i2<end)end=i2;});
+    res[keys[h]]=fullText.slice(start,end).trim();
+  });
+  return res;
+}
+function parseMeetbon(buf){
+  return pdfjsLib.getDocument({data:buf}).promise.then(function(pdf){
+    var pagePromises=[];
+    for(var i=1;i<=pdf.numPages;i++){pagePromises.push(pdf.getPage(i).then(pageTextLines));}
+    return Promise.all(pagePromises);
+  }).then(function(pagesLines){
+    var fullText=pagesLines.map(function(lines){return lines.join('\n');}).join('\n');
+    var header=parseHeader(fullText);
+    var idxs=[],re=/Product\s+(\d+)/g,m;
+    while((m=re.exec(fullText))){idxs.push({idx:m.index,num:m[1]});}
+    var producten=idxs.map(function(x,i){
+      var end=i+1<idxs.length?idxs[i+1].idx:fullText.length;
+      return parseProductBlock(x.num,fullText.slice(x.idx,end));
+    });
+    var aanvullend=parseAanvullend(fullText);
+    var adres=parseAddress(pagesLines);
+    return{header:header,producten:producten,aanvullend:aanvullend,adres:adres,raw:fullText};
+  });
+}
+// ── start: haal automatisch op bij openen ────────────────────────────────
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){autoLoadSheet();});
+else autoLoadSheet();
 </script>
 </body>
 </html>
