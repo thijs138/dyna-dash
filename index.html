@@ -1231,8 +1231,13 @@ function fetchMeetbonForTicket(ticketId){
       return r.json();
     })
     .then(function(info){
-      var att=(info.attachments||[]).find(function(a){return /_intern/i.test(a.name||'');});
-      if(!att)throw new Error('Geen "_intern" meetbon gevonden voor dit ticket.');
+      // Bij "meetoverzicht"-tickets is er meestal een "_intern"-bijlage; bij "offerte"-tickets
+      // (geen _intern-variant) staat dezelfde meetbon-info gewoon in de klant-mail-bijlage —
+      // de proxy filtert attachments al op meetbon/meetoverzicht-achtige bestandsnamen, dus
+      // elke bijlage in deze lijst is bruikbaar als er geen _intern-variant is.
+      var atts=info.attachments||[];
+      var att=atts.find(function(a){return /_intern/i.test(a.name||'');})||atts[0];
+      if(!att)throw new Error('Geen meetbon-bijlage gevonden voor dit ticket.');
       return fetch(FD_PROXY_BASE+'/ticket/'+encodeURIComponent(ticketId)+'/attachment/'+encodeURIComponent(att.id),{headers:{Authorization:'Bearer '+key}})
         .then(function(r){
           if(r.status===429)throw new Error('429');
@@ -1382,8 +1387,10 @@ function startBulkMeetbonFetch(){
   ensureMeetbonIndex().then(function(){
     var allTickets=[];
     (window._fdRows||[]).forEach(function(r){
+      // "offerte"-tickets hebben geen "_intern"-bijlage, maar de klant-mail-bijlage bevat
+      // dezelfde meetbon-data en is dus ook bruikbaar voor de automatische ophaal.
       var match=lookupMeetbonTicket(r.ordr);
-      if(match&&match.type!=='offerte')allTickets.push(match.ticketId);
+      if(match)allTickets.push(match.ticketId);
     });
     allTickets=allTickets.filter(function(t,i){return allTickets.indexOf(t)===i;});
     var todo=allTickets.filter(function(t){return isValidTicketId(t)&&!S.meetbonCache[t];});
