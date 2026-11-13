@@ -1065,6 +1065,33 @@ function buildAdviseurVariatie(entries){
     return{adv:a,n:d.n,uNaam:Object.keys(d.naam).length,uKleur:Object.keys(d.kleur).length,uSysteem:Object.keys(d.systeem).length};
   }).sort(function(a,b){return b.uNaam-a.uNaam;});
 }
+function buildTopProductsPerAdviseur(entries){
+  var byAdv={};
+  entries.forEach(function(x){
+    var a=x.adv||'Onbekend',n=x.p.naam;
+    if(!n)return;
+    if(!byAdv[a])byAdv[a]={};
+    byAdv[a][n]=(byAdv[a][n]||0)+1;
+  });
+  return Object.keys(byAdv).map(function(a){
+    var top=Object.entries(byAdv[a]).sort(function(x,y){return y[1]-x[1];}).slice(0,3);
+    return{adv:a,top:top};
+  }).sort(function(x,y){return(y.top[0]?y.top[0][1]:0)-(x.top[0]?x.top[0][1]:0);});
+}
+// Conversie per adviseur per product: "besteld" is bekend per ORDER (uit de bellijst), niet
+// per product — als de order besteld is, telt elk ingemeten product van die order als besteld.
+function buildAdvProductConversion(entries){
+  var m={};
+  entries.forEach(function(x){
+    if(x.besteld===null||!x.p.naam)return;
+    var key=x.adv+'||'+x.p.naam;
+    if(!m[key])m[key]={adv:x.adv,naam:x.p.naam,ingemeten:0,besteld:0};
+    m[key].ingemeten++;
+    if(x.besteld)m[key].besteld++;
+  });
+  return Object.values(m).map(function(d){d.conv=d.ingemeten>0?r1(d.besteld/d.ingemeten*100):0;return d;})
+    .sort(function(a,b){return b.ingemeten-a.ingemeten;});
+}
 function renderProductInsights(){
   var root=document.getElementById('piRoot');
   if(!root)return;
@@ -1088,11 +1115,14 @@ function renderProductInsights(){
     return;
   }
   var entries=[];
-  var ticketAdvMap={};
-  (window._fdRows||[]).forEach(function(r){var m=lookupMeetbonTicket(r.ordr);if(m)ticketAdvMap[m.ticketId]=r.adv;});
+  var ticketAdvMap={},ticketBestMap={};
+  (window._fdRows||[]).forEach(function(r){var m=lookupMeetbonTicket(r.ordr);if(m){ticketAdvMap[m.ticketId]=r.adv;ticketBestMap[m.ticketId]=!!r.isB;}});
   tickets.forEach(function(t){
     var adv=ticketAdvMap[t]||(cache[t].header&&cache[t].header.adviseur)||'Onbekend';
-    (cache[t].producten||[]).forEach(function(p){entries.push({adv:adv,p:p});});
+    // "besteld" komt uit de bellijst (hele order), niet per product — als de order besteld is,
+    // nemen we aan dat alle ingemeten producten van die order zijn besteld (zo gevraagd).
+    var besteld=ticketBestMap.hasOwnProperty(t)?ticketBestMap[t]:null;
+    (cache[t].producten||[]).forEach(function(p){entries.push({adv:adv,p:p,besteld:besteld});});
   });
   var allProd=entries.map(function(x){return x.p;});
   if(!allProd.length){
@@ -1115,6 +1145,19 @@ function renderProductInsights(){
     return '<tr><td><strong>'+escapeHtml(d.adv)+'</strong></td><td>'+d.n+'</td><td>'+d.uNaam+'</td><td>'+d.uKleur+'</td><td>'+d.uSysteem+'</td></tr>';
   }).join('');
   var advTable=advVar.length?('<div class="sec" style="margin-top:4px">Variatie per adviseur</div><div class="scr"><table><thead><tr><th>Adviseur</th><th>Producten</th><th>Unieke producttypes</th><th>Unieke kleuren</th><th>Unieke systemen</th></tr></thead><tbody>'+advRows+'</tbody></table></div>'):'';
+  var topPerAdv=buildTopProductsPerAdviseur(entries);
+  var topPerAdvRows=topPerAdv.map(function(d){
+    var cells=[0,1,2].map(function(i){return d.top[i]?'<td>'+escapeHtml(d.top[i][0])+' <span style="color:#aaa">('+d.top[i][1]+'&times;)</span></td>':'<td style="color:#ddd">—</td>';}).join('');
+    return '<tr><td><strong>'+escapeHtml(d.adv)+'</strong></td>'+cells+'</tr>';
+  }).join('');
+  var topPerAdvTable=topPerAdv.length?('<div class="sec" style="margin-top:4px">Meest ingemeten producten per adviseur</div><div class="scr"><table><thead><tr><th>Adviseur</th><th>#1</th><th>#2</th><th>#3</th></tr></thead><tbody>'+topPerAdvRows+'</tbody></table></div>'):'';
+  var advConv=buildAdvProductConversion(entries).slice(0,20);
+  var advConvRows=advConv.map(function(d){
+    return '<tr><td><strong>'+escapeHtml(d.adv)+'</strong></td><td>'+escapeHtml(d.naam)+'</td><td>'+d.ingemeten+'</td><td>'+d.besteld+'</td><td>'+pc(d.conv)+'</td></tr>';
+  }).join('');
+  var advConvTable=advConv.length?('<div class="sec" style="margin-top:4px">Conversie per adviseur per product</div>'+
+    '<p class="unote" style="max-width:none;text-align:left;margin-bottom:8px">Gebaseerd op de "besteld"-status van de hele order in de bellijst — als een order besteld is, telt elk ingemeten product van die order als besteld. Top 20, gesorteerd op meest ingemeten.</p>'+
+    '<div class="scr"><table><thead><tr><th>Adviseur</th><th>Product</th><th>Ingemeten</th><th>Besteld</th><th>Conversie</th></tr></thead><tbody>'+advConvRows+'</tbody></table></div>'):'';
   root.innerHTML=progress+
     '<div class="kg">'+
     kpi('ka',tickets.length.toString(),'Meetbonnen opgehaald','huidige + vorige maand')+
@@ -1130,7 +1173,7 @@ function renderProductInsights(){
     '<div class="cc"><div class="cct">Type bediening</div>'+rankList(bedT)+'</div>'+
     '<div class="cc"><div class="cct">Type systeem</div>'+rankList(sysT)+'</div>'+
     '</div>'+
-    advTable;
+    advTable+topPerAdvTable+advConvTable;
   if(kleurT.length)mkChart('cPiKleur',{type:'doughnut',data:{labels:kleurT.slice(0,8).map(function(x){return x[0];}),datasets:[{data:kleurT.slice(0,8).map(function(x){return x[1];}),backgroundColor:CAT,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10},boxWidth:10}}}}});
 }
 var FD_SORT={dir:0};
@@ -1358,14 +1401,21 @@ function runBulkFetchQueue(todo){
   function next(){
     if(idx>=todo.length){
       activeWorkers--;
-      if(activeWorkers<=0){_bulkFetchState.running=false;renderIfActive();if(document.getElementById('pg_pi')&&document.getElementById('pg_pi').classList.contains('active'))renderProductInsights();}
+      if(activeWorkers<=0){
+        _bulkFetchState.running=false;
+        if(_provinceDirty){flushProvinceRebuild();}
+        else{renderIfActive();if(document.getElementById('pg_pi')&&document.getElementById('pg_pi').classList.contains('active'))renderProductInsights();}
+      }
       return;
     }
     var ticketId=todo[idx++];
     var wait=Math.max(0,_bulkBackoffUntil-Date.now());
     setTimeout(function(){
       fetchMeetbonForTicket(ticketId)
-        .then(function(parsed){cacheMeetbonSilent(ticketId,parsed);})
+        .then(function(parsed){
+          enrichProvinceFromMeetbonSilent(ticketId,parsed.adres);
+          cacheMeetbonSilent(ticketId,parsed);
+        })
         .catch(function(err){
           _bulkFetchState.errors++;
           if(err&&err.message==='429')_bulkBackoffUntil=Date.now()+5000;
@@ -1506,20 +1556,33 @@ function pc4ToProvince(pc4){
   return null;
 }
 // Vult de provincie aan voor bellijst-rijen van dit ticket, alleen als er nog geen
-// (handmatig geüploade) provincie bekend is — die blijft leidend.
-function enrichProvinceFromMeetbon(ticketId,adres){
+// (handmatig geüploade) provincie bekend is — die blijft leidend. Muteert alleen de
+// rijen, zonder dashboard te herbouwen (dat zou bij een bulk-run honderden keren
+// achter elkaar gebeuren) — zie enrichProvinceFromMeetbon() voor de variant die wél
+// meteen herbouwt, en flushProvinceRebuild() om na een bulk-run één keer te herbouwen.
+var _provinceDirty=false;
+function enrichProvinceFromMeetbonSilent(ticketId,adres){
   if(!S.data||!adres||!adres.pc4)return null;
   var prov=pc4ToProvince(adres.pc4);
   if(!prov)return null;
-  var changed=false;
-  S.data.rows.forEach(function(r){var m=lookupMeetbonTicket(r.ordr);if(m&&m.ticketId===ticketId&&!r.prov){r.prov=prov;changed=true;}});
-  if(changed){
-    var activeBtn=document.querySelector('.tab.active'),activeId=activeBtn?activeBtn.getAttribute('data-id'):null;
-    S.data=buildDataset(S.data.rows,S.prevRows);
-    renderDashboard();
-    if(activeId){var btn=document.querySelector('.tab[data-id="'+activeId+'"]');if(btn)switchPage(activeId,btn);}
-  }
+  S.data.rows.forEach(function(r){var m=lookupMeetbonTicket(r.ordr);if(m&&m.ticketId===ticketId&&!r.prov){r.prov=prov;_provinceDirty=true;}});
   return prov;
+}
+function enrichProvinceFromMeetbon(ticketId,adres){
+  var prov=enrichProvinceFromMeetbonSilent(ticketId,adres);
+  if(_provinceDirty)flushProvinceRebuild();
+  return prov;
+}
+// Herbouwt het dashboard (nodig omdat provincie-afgeleide data pas na buildDataset()
+// in PV/AD terechtkomt) en herstelt de actieve pagina, zodat Provincie/Adv. per regio
+// de net binnengekomen provincie-data tonen zonder dat de gebruiker iets hoeft te doen.
+function flushProvinceRebuild(){
+  if(!_provinceDirty||!S.data)return;
+  _provinceDirty=false;
+  var activeBtn=document.querySelector('.tab.active'),activeId=activeBtn?activeBtn.getAttribute('data-id'):null;
+  S.data=buildDataset(S.data.rows,S.prevRows);
+  renderDashboard();
+  if(activeId){var btn=document.querySelector('.tab[data-id="'+activeId+'"]');if(btn)switchPage(activeId,btn);}
 }
 function parseAanvullend(fullText){
   var heads=['Speciale wensen productie','Opmerkingen over de afspraak','Bijzonderheden voor montage'];
