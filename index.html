@@ -1258,9 +1258,28 @@ function friendlyFetchError(msg){
   if(msg==='429')return'Freshdesk/de proxy geeft aan dat er te veel verzoeken zijn gedaan (HTTP 429). Probeer het zo weer.';
   return msg;
 }
+// Bewust in localStorage (niet sessionStorage): de opgehaalde meetbon-data blijft zo
+// bewaard tussen sessies/herladen, zodat een volgend bezoek alleen de ontbrekende
+// (nieuwe) meetbonnen hoeft op te halen i.p.v. steeds alles opnieuw.
 function fdCacheLSKey(){return 'rd_meetbon_cache_v1';}
-function loadMeetbonCacheLS(){try{var s=sessionStorage.getItem(fdCacheLSKey());return s?JSON.parse(s):{};}catch(e){return{};}}
-function saveMeetbonCacheLS(){try{sessionStorage.setItem(fdCacheLSKey(),JSON.stringify(S.meetbonCache||{}));}catch(e){}}
+function loadMeetbonCacheLS(){try{var s=localStorage.getItem(fdCacheLSKey());return s?JSON.parse(s):{};}catch(e){return{};}}
+// Ruimt tickets op die niet meer in de huidige scope (huidige+vorige maand) vallen,
+// zodat de opslag niet onbeperkt blijft doorgroeien maand na maand.
+function currentValidTicketIds(){
+  if(!_meetbonIndex||!window._fdRows)return null;
+  var set={};
+  window._fdRows.forEach(function(r){var m=lookupMeetbonTicket(r.ordr);if(m)set[m.ticketId]=true;});
+  return set;
+}
+function saveMeetbonCacheLS(){
+  try{
+    var valid=currentValidTicketIds();
+    if(valid&&S.meetbonCache){
+      Object.keys(S.meetbonCache).forEach(function(t){if(!valid[t])delete S.meetbonCache[t];});
+    }
+    localStorage.setItem(fdCacheLSKey(),JSON.stringify(S.meetbonCache||{}));
+  }catch(e){}
+}
 function ensureMeetbonCache(){if(!S.meetbonCache)S.meetbonCache=loadMeetbonCacheLS();return S.meetbonCache;}
 function cacheMeetbon(ticketId,parsed){
   ensureMeetbonCache();
@@ -1310,8 +1329,21 @@ function normalizeIndex(raw){
   Object.keys(raw||{}).forEach(function(k){out[normOrdr(k)]=raw[k];});
   return out;
 }
-function loadMeetbonIndexLS(){try{var s=sessionStorage.getItem(FD_INDEX_LS);return s?JSON.parse(s):null;}catch(e){return null;}}
-function saveMeetbonIndexLS(){try{sessionStorage.setItem(FD_INDEX_LS,JSON.stringify(_meetbonIndex||{}));}catch(e){}}
+// Index + sync-tijdstip in localStorage (niet sessionStorage): blijft bewaard tussen
+// sessies, zodat we bij een volgend bezoek niet opnieuw duizenden tickets hoeven te
+// scannen — alleen wat sinds de vorige sync is bijgekomen (zie ensureMeetbonIndex()).
+var FD_INDEX_META_LS='rd_meetbon_index_meta_v1';
+function loadMeetbonIndexLS(){try{var s=localStorage.getItem(FD_INDEX_LS);return s?JSON.parse(s):null;}catch(e){return null;}}
+function saveMeetbonIndexLS(){try{localStorage.setItem(FD_INDEX_LS,JSON.stringify(_meetbonIndex||{}));}catch(e){}}
+function loadIndexMetaLS(){try{var s=localStorage.getItem(FD_INDEX_META_LS);return s?JSON.parse(s):null;}catch(e){return null;}}
+function saveIndexMetaLS(meta){try{localStorage.setItem(FD_INDEX_META_LS,JSON.stringify(meta));}catch(e){}}
+function todayDateStr(){var n=new Date();return n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');}
+function addDays(dateStr,days){
+  var d=new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()+days);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function clampSince(dateStr){var floor=indexSinceDate();return dateStr<floor?floor:dateStr;}
 function lookupMeetbonTicket(ordr){
   if(!_meetbonIndex)return null;
   return _meetbonIndex[normOrdr(ordr)]||null;
@@ -1345,20 +1377,27 @@ function fetchMeetbonIndexPage(since,startPage,merged){
       throw err;
     });
 }
-function startMeetbonIndexBuild(){
+function startMeetbonIndexBuild(since){
   if(_indexState.promise)return _indexState.promise;
   if(!getFdKey()){
     _indexState.running=false;_indexState.error='Geen Freshdesk API-key ingesteld';
     fdIndexProgressRender();
     return Promise.reject(new Error(_indexState.error));
   }
-  _indexState.running=true;_indexState.done=false;_indexState.error=null;_indexState.ordersFound=0;
+  since=since||indexSinceDate();
+  _indexState.running=true;_indexState.done=false;_indexState.error=null;
+  _indexState.ordersFound=Object.keys(_meetbonIndex||{}).length;
   fdIndexProgressRender();
-  var p=fetchMeetbonIndexPage(indexSinceDate(),1,{})
+  // begin met de bestaande index (bij een incrementele sync) zodat nieuwe resultaten
+  // worden AANGEVULD, niet vervangen.
+  var startMerged={};
+  Object.keys(_meetbonIndex||{}).forEach(function(k){startMerged[k]=_meetbonIndex[k];});
+  var p=fetchMeetbonIndexPage(since,1,startMerged)
     .then(function(merged){
       _meetbonIndex=normalizeIndex(merged);
       saveMeetbonIndexLS();
-      _indexState.running=false;_indexState.done=true;
+      saveIndexMetaLS({lastSyncAt:todayDateStr()});
+      _indexState.running=false;_indexState.done=true;_indexState.promise=null;
       fdIndexProgressRender();
       return _meetbonIndex;
     })
@@ -1373,8 +1412,17 @@ function startMeetbonIndexBuild(){
 function ensureMeetbonIndex(){
   if(_meetbonIndex)return Promise.resolve(_meetbonIndex);
   var cached=loadMeetbonIndexLS();
-  if(cached){_meetbonIndex=cached;return Promise.resolve(_meetbonIndex);}
-  return startMeetbonIndexBuild();
+  if(cached){
+    _meetbonIndex=cached;
+    // Ververs op de achtergrond: alleen wat sinds de vorige sync is bijgekomen (met een
+    // kleine veiligheidsmarge), niet duizenden tickets opnieuw scannen. Blokkeert niet —
+    // de al bekende data is meteen bruikbaar; nieuwe orders komen er vanzelf bij.
+    var meta=loadIndexMetaLS();
+    var since=meta&&meta.lastSyncAt?clampSince(addDays(meta.lastSyncAt,-3)):indexSinceDate();
+    startMeetbonIndexBuild(since).catch(function(){});
+    return Promise.resolve(_meetbonIndex);
+  }
+  return startMeetbonIndexBuild(indexSinceDate());
 }
 // ── bulk-ophalen op de achtergrond (batching + backoff, read-only) ──────
 var BULK_CONCURRENCY=4;
