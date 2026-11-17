@@ -1106,7 +1106,7 @@ function renderProductInsights(){
   var progress=idxProgress+((_bulkFetchState.total>0)?(
     '<div class="ibox ibl" style="margin-bottom:16px"><div class="it">'+(_bulkFetchState.running?'&#8987; Meetbonnen ophalen op de achtergrond…':'&#9989; Achtergrond-ophalen klaar')+'</div>'+
     '<div class="pibar"><div class="pibarfill" id="piProgressBar" style="width:'+(_bulkFetchState.total?Math.round(_bulkFetchState.done/_bulkFetchState.total*100):0)+'%"></div></div>'+
-    '<p id="piProgressTxt" style="margin-top:6px">'+(_bulkFetchState.running?_bulkFetchState.done+' van '+_bulkFetchState.total+' meetbonnen opgehaald…':'Klaar: '+_bulkFetchState.done+' van '+_bulkFetchState.total+' opgehaald')+(_bulkFetchState.errors?' ('+_bulkFetchState.errors+' mislukt/overgeslagen)':'')+'</p></div>'
+    '<p id="piProgressTxt" style="margin-top:6px">'+(_bulkFetchState.running?_bulkFetchState.done+' van '+_bulkFetchState.total+' meetbonnen opgehaald…':'Klaar: '+_bulkFetchState.done+' van '+_bulkFetchState.total+' opgehaald')+fmtErrorBreakdown()+'</p></div>'
   ):'');
   if(!tickets.length){
     root.innerHTML=progress+'<div class="ibox"><div class="it">&#128202; Nog geen productdata</div><p>'+
@@ -1378,7 +1378,13 @@ function ensureMeetbonIndex(){
 }
 // ── bulk-ophalen op de achtergrond (batching + backoff, read-only) ──────
 var BULK_CONCURRENCY=4;
-var _bulkFetchState={running:false,done:0,total:0,errors:0};
+var _bulkFetchState={running:false,done:0,total:0,errors:0,errorTypes:{}};
+function fmtErrorBreakdown(){
+  if(!_bulkFetchState.errors)return'';
+  var parts=Object.entries(_bulkFetchState.errorTypes||{}).sort(function(a,b){return b[1]-a[1];})
+    .map(function(e){return e[1]+'x '+e[0];});
+  return ' ('+_bulkFetchState.errors+' mislukt/overgeslagen'+(parts.length?': '+parts.join(', '):'')+')';
+}
 var _bulkBackoffUntil=0;
 function startBulkMeetbonFetch(){
   if(_bulkFetchState.running)return;
@@ -1402,8 +1408,10 @@ function startBulkMeetbonFetch(){
   });
 }
 function runBulkFetchQueue(todo){
-  _bulkFetchState={running:true,done:0,total:todo.length,errors:0};
+  _bulkFetchState={running:true,done:0,total:todo.length,errors:0,errorTypes:{}};
   var idx=0,activeWorkers=0;
+  var retryCount={};
+  var MAX_RETRIES=5;
   function renderIfActive(){var pg=document.getElementById('pg_pi');if(pg&&pg.classList.contains('active'))updatePiProgress();}
   function next(){
     if(idx>=todo.length){
@@ -1422,13 +1430,27 @@ function runBulkFetchQueue(todo){
         .then(function(parsed){
           enrichProvinceFromMeetbonSilent(ticketId,parsed.adres);
           cacheMeetbonSilent(ticketId,parsed);
+          return true; // definitief klaar
         })
         .catch(function(err){
+          // bij 429 (rate limit): niet meteen als mislukt tellen, maar met oplopende
+          // backoff (5s, 10s, 20s, ... max 60s) opnieuw proberen, tot MAX_RETRIES keer.
+          if(err&&err.message==='429'){
+            var n=(retryCount[ticketId]||0)+1;
+            retryCount[ticketId]=n;
+            _bulkBackoffUntil=Date.now()+Math.min(60000,5000*Math.pow(2,n-1));
+            if(n<=MAX_RETRIES){
+              todo.push(ticketId);
+              return false; // nog niet definitief klaar; telt niet mee in 'done'
+            }
+          }
           _bulkFetchState.errors++;
-          if(err&&err.message==='429')_bulkBackoffUntil=Date.now()+5000;
+          var key=(err&&err.message)||'onbekend';
+          _bulkFetchState.errorTypes[key]=(_bulkFetchState.errorTypes[key]||0)+1;
+          return true; // definitief mislukt (of max. retries bereikt)
         })
-        .then(function(){
-          _bulkFetchState.done++;
+        .then(function(isFinal){
+          if(isFinal)_bulkFetchState.done++;
           renderIfActive();
           next();
         });
@@ -1450,7 +1472,7 @@ function updatePiProgress(){
   if(!bar||!txt)return;
   var pct=_bulkFetchState.total?Math.round(_bulkFetchState.done/_bulkFetchState.total*100):0;
   bar.style.width=pct+'%';
-  txt.textContent=(_bulkFetchState.running?_bulkFetchState.done+' van '+_bulkFetchState.total+' meetbonnen opgehaald…':'Klaar: '+_bulkFetchState.done+' van '+_bulkFetchState.total+' opgehaald')+(_bulkFetchState.errors?' ('+_bulkFetchState.errors+' mislukt/overgeslagen)':'');
+  txt.textContent=(_bulkFetchState.running?_bulkFetchState.done+' van '+_bulkFetchState.total+' meetbonnen opgehaald…':'Klaar: '+_bulkFetchState.done+' van '+_bulkFetchState.total+' opgehaald')+fmtErrorBreakdown();
 }
 function renderMeetbon(p){
   var h=p.header||{};
