@@ -1040,6 +1040,43 @@ function showMeetbonModal(state,data){
   else if(state==='done'){h.textContent='Meetbon — ticket '+escapeHtml(data.ticketId);body.innerHTML=renderMeetbon(data);}
 }
 function numFrom(s){var n=parseFloat(String(s==null?'':s).replace(',','.').replace(/[^\d.]/g,''));return isNaN(n)?null:n;}
+// Kleurfamilies: specifieke kleurnamen (bv. "Desert taupe", "Mushroom beige") worden gegroepeerd
+// onder hun basiskleur, zodat varianten van dezelfde kleur niet los geteld worden.
+var COLOR_FAMILIES=[
+  {name:'Taupe',kw:['taupe']},
+  {name:'Antraciet',kw:['antraciet','anthracite']},
+  {name:'Crème',kw:['crème','creme','cream','ecru']},
+  {name:'Beige',kw:['beige']},
+  {name:'Wit',kw:['wit','white','ivoor','ivory']},
+  {name:'Grijs',kw:['grijs','grey','gray']},
+  {name:'Zwart',kw:['zwart','black']},
+  {name:'Camel',kw:['camel']},
+  {name:'Bruin',kw:['bruin','brown','cognac','chocolade','chocolate']},
+  {name:'Naturel',kw:['naturel','natural','natuur']},
+  {name:'Blauw',kw:['blauw','blue']},
+  {name:'Groen',kw:['groen','green']},
+  {name:'Geel',kw:['geel','yellow']},
+  {name:'Oranje',kw:['oranje','orange']},
+  {name:'Rood',kw:['rood','red','bordeaux']},
+  {name:'Roze',kw:['roze','pink']},
+  {name:'Paars',kw:['paars','purple','lila','violet']},
+  {name:'Goud',kw:['goud','gold']},
+  {name:'Zilver',kw:['zilver','silver']},
+  {name:'Brons',kw:['brons','bronze']},
+  {name:'Koper',kw:['koper','copper']}
+];
+function colorFamily(raw){
+  var s=String(raw==null?'':raw).trim();
+  if(!s)return s;
+  var low=s.toLowerCase();
+  for(var i=0;i<COLOR_FAMILIES.length;i++){
+    var fam=COLOR_FAMILIES[i];
+    for(var j=0;j<fam.kw.length;j++){
+      if(low.indexOf(fam.kw[j])!==-1)return fam.name;
+    }
+  }
+  return s;
+}
 function rankList(entries,max){
   max=max||8;
   var top=entries.slice(0,max);
@@ -1057,7 +1094,7 @@ function buildAdviseurVariatie(entries){
     if(!byAdv[a])byAdv[a]={naam:{},kleur:{},systeem:{},n:0};
     byAdv[a].n++;
     if(x.p.naam)byAdv[a].naam[x.p.naam]=1;
-    if(x.p.kleur)byAdv[a].kleur[x.p.kleur]=1;
+    if(x.p.kleur)byAdv[a].kleur[colorFamily(x.p.kleur)]=1;
     if(x.p.systeem)byAdv[a].systeem[x.p.systeem]=1;
   });
   return Object.keys(byAdv).map(function(a){
@@ -1131,7 +1168,11 @@ function renderProductInsights(){
   }
   function tally(key2){
     var m={};
-    allProd.forEach(function(p){var v=(p[key2]||'').trim();if(!v)return;m[v]=(m[v]||0)+1;});
+    allProd.forEach(function(p){
+      var v=(p[key2]||'').trim();if(!v)return;
+      if(key2==='kleur')v=colorFamily(v);
+      m[v]=(m[v]||0)+1;
+    });
     return Object.entries(m).sort(function(a,b){return b[1]-a[1];});
   }
   var naamT=tally('naam'),kleurT=tally('kleur'),bedT=tally('bediening'),sysT=tally('systeem');
