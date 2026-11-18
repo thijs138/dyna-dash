@@ -483,9 +483,22 @@ function buildDataset(rows,prevRows){
     rows.filter(function(r){return r.maand===m&&r.prov;}).forEach(function(r){if(!PV[m][r.prov])PV[m][r.prov]={n:0,b:0};PV[m][r.prov].n++;if(r.isB)PV[m][r.prov].b++;});
     Object.keys(PV[m]).forEach(function(p){var v=PV[m][p];v.c=v.n>0?r1(v.b/v.n*100):0;});
   });
+  // De lopende/laatste maand sluiten we uit van de "Totaal"-conversie: die maand heeft nog
+  // niet genoeg tijd gehad om te converteren, dus meetellen zou de conversie% oneerlijk
+  // drukken. Ingemeten/besteld-aantallen (n/b) blijven wel de volledige (incl. lopende
+  // maand) totalen — alleen het conversiepercentage wordt op de afgeronde maanden berekend.
+  var monthsDone=months.length>1?months.slice(0,-1):months;
   var pvTot={};
-  months.forEach(function(m){Object.entries(PV[m]).forEach(function(e){var p=e[0],v=e[1];if(!pvTot[p])pvTot[p]={n:0,b:0};pvTot[p].n+=v.n;pvTot[p].b+=v.b;});});
-  Object.keys(pvTot).forEach(function(p){var v=pvTot[p];v.c=v.n>0?r1(v.b/v.n*100):0;});
+  months.forEach(function(m){
+    var isDone=monthsDone.indexOf(m)>-1;
+    Object.entries(PV[m]).forEach(function(e){
+      var p=e[0],v=e[1];
+      if(!pvTot[p])pvTot[p]={n:0,b:0,nDone:0,bDone:0};
+      pvTot[p].n+=v.n;pvTot[p].b+=v.b;
+      if(isDone){pvTot[p].nDone+=v.n;pvTot[p].bDone+=v.b;}
+    });
+  });
+  Object.keys(pvTot).forEach(function(p){var v=pvTot[p];v.c=v.nDone>0?r1(v.bDone/v.nDone*100):0;});
   PV.Totaal=pvTot;
   var NC=[];
   if(prevRows){
@@ -616,7 +629,14 @@ function buildAllPages(D){
   var tB=M.reduce(function(s,m){return s+MD[m].b;},0);
   var tWi=M.reduce(function(s,m){return s+MD[m].wi;},0);
   var tWb=M.reduce(function(s,m){return s+MD[m].wb;},0);
-  var tC=tN>0?r1(tB/tN*100):0;
+  // Lopende/laatste maand telt niet mee in de TOTALE conversie — nog niet genoeg tijd
+  // gehad om te converteren, dus meenemen zou de conversie% oneerlijk drukken. Totaal
+  // ingemeten/besteld (tN/tB hierboven) blijft wel de volledige periode tonen.
+  var Mdone=M.length>1?M.slice(0,-1):M;
+  var tNd=Mdone.reduce(function(s,m){return s+MD[m].n;},0);
+  var tBd=Mdone.reduce(function(s,m){return s+MD[m].b;},0);
+  var tC=tNd>0?r1(tBd/tNd*100):0;
+  var tCsub=Mdone.length<M.length?('t/m '+Mdone[Mdone.length-1]+' (excl. '+M[M.length-1]+')'):'alle maanden';
   var tCw=tWi>0?r1(tWb/tWi*100):0;
   var q1M=M.slice(0,Math.min(3,M.length));
   var q1n=q1M.reduce(function(s,m){return s+MD[m].n;},0);
@@ -631,7 +651,7 @@ function buildAllPages(D){
     '<div class="kg">'+
     kpi('ka',fN(tN),'Totaal ingemeten',M.join(' + '),null,M.map(function(m){return MD[m].n;}))+
     kpi('ka',fN(tB),'Totaal besteld','van '+fN(tN)+' metingen',null,M.map(function(m){return MD[m].b;}))+
-    kpi('kg2',tC+'%','Conversie totaal','alle maanden',null,M.map(function(m){return MD[m].conv;}))+
+    kpi('kg2',tC+'%','Conversie totaal',tCsub,null,M.map(function(m){return MD[m].conv;}))+
     kpi('',ef(tWi),'Waarde ingemeten','','font-size:18px',M.map(function(m){return MD[m].wi;}))+
     kpi('',ef(tWb),'Waarde besteld','','font-size:18px',M.map(function(m){return MD[m].wb;}))+
     kpi(lastD.conv<q1gem?'kr':'kg2','<span style="color:'+pHex(lastD.conv)+'">'+lastD.conv+'%</span>',lastM+' conversie',dh(lastD.conv,q1gem)+' vs Q1 gem',null,M.map(function(m){return MD[m].conv;}))+
@@ -651,13 +671,15 @@ function buildAllPages(D){
   var advHdr=M.map(function(m){var s=m.slice(0,3);return '<th>'+s+' ing.</th><th>'+s+' b.</th><th>'+s+'%</th>';}).join('');
   var advR=AN.map(function(a){
     var cells=M.map(function(m){var d=AD[a][m];if(!d)return '<td>—</td><td>—</td><td style="color:#ccc">—</td>';return '<td>'+d.n+'</td><td>'+d.b+'</td><td>'+pc(d.conv)+'</td>';}).join('');
-    var ti=M.reduce(function(s,m){return s+(AD[a][m]?AD[a][m].n:0);},0);
-    var tb=M.reduce(function(s,m){return s+(AD[a][m]?AD[a][m].b:0);},0);
+    // Totaal-kolom sluit de lopende/laatste maand uit (zie Mdone hierboven): die heeft nog
+    // niet genoeg tijd gehad om te converteren, de maandkolommen zelf tonen 'm wel apart.
+    var ti=Mdone.reduce(function(s,m){return s+(AD[a][m]?AD[a][m].n:0);},0);
+    var tb=Mdone.reduce(function(s,m){return s+(AD[a][m]?AD[a][m].b:0);},0);
     var tc=ti>0?r1(tb/ti*100):0;
     return '<tr><td><strong>'+a+'</strong></td>'+cells+'<td>'+tb+'/'+ti+'</td><td>'+pc(tc)+'</td></tr>';
   }).join('');
   var avgC=M.map(function(m){return '<td>'+MD[m].n+'</td><td>'+MD[m].b+'</td><td><span class="pill pd">'+MD[m].conv+'%</span></td>';}).join('');
-  advR+='<tr class="tr-avg"><td><strong>Team gem.</strong></td>'+avgC+'<td>'+tB+'/'+tN+'</td><td><span class="pill pd">'+tC+'%</span></td></tr>';
+  advR+='<tr class="tr-avg"><td><strong>Team gem.</strong></td>'+avgC+'<td>'+tBd+'/'+tNd+'</td><td><span class="pill pd">'+tC+'%</span></td></tr>';
   var gemR=M.map(function(m){
     var sc=AN.map(function(a){return[a,AD[a][m]?AD[a][m].conv:0];}).filter(function(x){return AD[x[0]][m];});
     if(!sc.length)return'';
@@ -953,11 +975,16 @@ function buildAdvHTML(adv){
   var tB=M.reduce(function(s,m){return s+(d[m]?d[m].b:0);},0);
   var tWi=M.reduce(function(s,m){return s+(d[m]?d[m].wi:0);},0);
   var tWb=M.reduce(function(s,m){return s+(d[m]?d[m].wb:0);},0);
-  var tC=tN>0?r1(tB/tN*100):0;
-  var tGem=r1(M.reduce(function(s,m){return s+MD[m].conv;},0)/M.length);
+  // Lopende/laatste maand sluiten we uit van de TOTALE conversie (zie Mdone-toelichting
+  // elders in dit bestand) — nog niet genoeg tijd gehad om te converteren.
+  var Mdone=M.length>1?M.slice(0,-1):M;
+  var tNd=Mdone.reduce(function(s,m){return s+(d[m]?d[m].n:0);},0);
+  var tBd=Mdone.reduce(function(s,m){return s+(d[m]?d[m].b:0);},0);
+  var tC=tNd>0?r1(tBd/tNd*100):0;
+  var tGem=r1(Mdone.reduce(function(s,m){return s+MD[m].conv;},0)/Mdone.length);
   var diff=r1(tC-tGem);
   var pvAcc={};
-  M.forEach(function(m){if(!d[m])return;Object.entries(d[m].prov||{}).forEach(function(e){var p=e[0],v=e[1];if(!pvAcc[p])pvAcc[p]={n:0,b:0};pvAcc[p].n+=v.n;pvAcc[p].b+=v.b;});});
+  Mdone.forEach(function(m){if(!d[m])return;Object.entries(d[m].prov||{}).forEach(function(e){var p=e[0],v=e[1];if(!pvAcc[p])pvAcc[p]={n:0,b:0};pvAcc[p].n+=v.n;pvAcc[p].b+=v.b;});});
   Object.keys(pvAcc).forEach(function(p){var v=pvAcc[p];v.c=v.n>0?r1(v.b/v.n*100):0;});
   var pvS=Object.entries(pvAcc).sort(function(a,b){return b[1].n-a[1].n;});
   var mndR=M.map(function(m){var dm=d[m];if(!dm)return '<tr><td>'+m+'</td><td colspan="5" style="color:#bbb">—</td></tr>';var tg=MD[m].conv;var dv=r1(dm.conv-tg);var col=pHex(dm.conv);return '<tr><td>'+m+'</td><td>'+dm.n+'</td><td>'+dm.b+'</td><td style="font-weight:700;color:'+col+'">'+dm.conv+'%</td><td style="color:#888;font-size:11px">'+tg+'%</td><td style="color:'+(dv>=0?GR:RD)+';font-weight:700;font-size:11px">'+(dv>=0?'+':'')+dv+'%</td></tr>';}).join('');
