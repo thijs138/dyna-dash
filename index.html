@@ -1535,6 +1535,7 @@ function runBulkFetchQueue(todo){
       activeWorkers--;
       if(activeWorkers<=0){
         _bulkFetchState.running=false;
+        flushCacheSave();
         if(_provinceDirty){flushProvinceRebuild();}
         else{renderIfActive();if(document.getElementById('pg_pi')&&document.getElementById('pg_pi').classList.contains('active'))renderProductInsights();}
       }
@@ -1584,10 +1585,29 @@ function runBulkFetchQueue(todo){
 }
 // zelfde als cacheMeetbon, maar zonder meteen de hele pagina te her-renderen (voorkomt
 // dat de kleuren-donut 100+ keer per bulk-run wordt afgebroken/opnieuw opgebouwd)
+var _cacheSaveTimer=null,_cachePendingSave=false;
+// saveMeetbonCacheLS() serialiseert de HELE cache (kan honderden orders bevatten) en
+// schrijft die synchroon naar localStorage. Dat bij elke afzonderlijke meetbon in een
+// bulk-run van honderden tickets doen maakt het proces nodeloos traag (steeds grotere
+// JSON-string, steeds opnieuw). Daarom debouncen we: tijdens een bulk-run wordt er hooguit
+// eens per 2s echt weggeschreven; flushCacheSave() aan het eind van de run garandeert dat
+// de laatste stand alsnog bewaard wordt.
+function scheduleCacheSave(){
+  _cachePendingSave=true;
+  if(_cacheSaveTimer)return;
+  _cacheSaveTimer=setTimeout(function(){
+    _cacheSaveTimer=null;
+    if(_cachePendingSave){_cachePendingSave=false;saveMeetbonCacheLS();}
+  },2000);
+}
+function flushCacheSave(){
+  if(_cacheSaveTimer){clearTimeout(_cacheSaveTimer);_cacheSaveTimer=null;}
+  if(_cachePendingSave){_cachePendingSave=false;saveMeetbonCacheLS();}
+}
 function cacheMeetbonSilent(ticketId,parsed){
   ensureMeetbonCache();
   S.meetbonCache[ticketId]=parsed;
-  saveMeetbonCacheLS();
+  scheduleCacheSave();
 }
 function updatePiProgress(){
   var bar=document.getElementById('piProgressBar'),txt=document.getElementById('piProgressTxt');
@@ -1767,6 +1787,11 @@ function parseMeetbon(buf){
     return{header:header,producten:producten,aanvullend:aanvullend,adres:adres,raw:fullText};
   });
 }
+// Vangnet: als de pagina dicht/ververst wordt terwijl de gedebouncete cache-save nog
+// "in de wacht" staat (max. 2s), alsnog meteen wegschrijven zodat die laatste meetbonnen
+// niet verloren gaan en opnieuw opgehaald moeten worden.
+window.addEventListener('beforeunload',function(){flushCacheSave();});
+window.addEventListener('pagehide',function(){flushCacheSave();});
 // ── start: haal automatisch op bij openen ────────────────────────────────
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){autoLoadSheet();});
 else autoLoadSheet();
