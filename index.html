@@ -1077,14 +1077,35 @@ function colorFamily(raw){
   }
   return s;
 }
-function rankList(entries,max){
+// Woorden die productnamen onnodig lang maken, afgekort zodat het verschil tussen
+// collecties/varianten (bv. "Home honingraat" vs "Slim") zichtbaar blijft i.p.v. afgekapt.
+var NAME_ABBR=[
+  [/\bop maat\b/gi,''],
+  [/\bPlisségordijn\b/gi,'Plissé'],
+  [/\bDuo rolgordijn\b/gi,'Duo rol'],
+  [/\bHouten jaloezie\b/gi,'Houten jal.'],
+  [/\bKunststof jaloezie\b/gi,'Kunst. jal.'],
+  [/\bVerticale lamellen\b/gi,'Vert. lamellen'],
+  [/\bHoningraat\b/gi,'Honi.'],
+  [/\bVerduisterend\b/gi,'Verd.'],
+  [/\bLichtdoorlatend\b/gi,'Lichtdrl.'],
+  [/\bTransparant\b/gi,'Transp.'],
+  [/\bAluminium\b/gi,'Alu.']
+];
+function abbreviateProductName(raw){
+  var s=String(raw==null?'':raw).trim();
+  NAME_ABBR.forEach(function(pair){s=s.replace(pair[0],pair[1]);});
+  return s.replace(/\s{2,}/g,' ').trim();
+}
+function rankList(entries,max,abbrFn){
   max=max||8;
+  abbrFn=abbrFn||function(s){return s;};
   var top=entries.slice(0,max);
   var total=entries.reduce(function(s,e){return s+e[1];},0)||1;
   if(!top.length)return'<p class="unote" style="max-width:none;text-align:left">Geen data.</p>';
   return '<div class="ranklist">'+top.map(function(e){
     var pct=Math.round(e[1]/total*100);
-    return '<div class="rlrow"><div class="rlname">'+escapeHtml(e[0])+'</div><div class="rlbar"><div class="rlfill" style="width:'+pct+'%"></div></div><div class="rlval">'+e[1]+'&times;</div></div>';
+    return '<div class="rlrow"><div class="rlname" title="'+escapeHtml(e[0])+'">'+escapeHtml(abbrFn(e[0]))+'</div><div class="rlbar"><div class="rlfill" style="width:'+pct+'%"></div></div><div class="rlval">'+e[1]+'&times;</div></div>';
   }).join('')+'</div>';
 }
 function buildAdviseurVariatie(entries){
@@ -1207,7 +1228,7 @@ function renderProductInsights(){
     (avgB&&avgH?kpi('',avgB+' &times; '+avgH+' cm','Gem. afmeting',''):'')+
     '</div>'+
     '<div class="r2">'+
-    '<div class="cc"><div class="cct">Top productnamen</div>'+rankList(naamT)+'</div>'+
+    '<div class="cc"><div class="cct">Top productnamen</div>'+rankList(naamT,8,abbreviateProductName)+'</div>'+
     '<div class="cc"><div class="cct">Top kleuren</div>'+(kleurT.length?'<div style="height:220px"><canvas id="cPiKleur"></canvas></div>':'<p class="unote" style="max-width:none;text-align:left">Geen data.</p>')+'</div>'+
     '</div>'+
     '<div class="r2">'+
