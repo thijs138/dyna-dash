@@ -1415,13 +1415,25 @@ function fdIndexProgressRender(){
   if(pgFd&&pgFd.classList.contains('active'))renderFdTable();
   if(pgPi&&pgPi.classList.contains('active'))renderProductInsights();
 }
+// Gedeeld tussen ticket-index-opbouw en bulk-meetbon-ophalen: beide lopen vlak na elkaar
+// (of tegelijk) bij het openen van de pagina en praten anders niet met elkaar, waardoor
+// ze elkaar in rate-limit (429) kunnen jagen. Eén 429 ergens zet dit venster, en ALLE
+// Freshdesk-proxy-aanroepen (index én bulk-fetch) wachten dat venster netjes uit voor hun
+// volgende verzoek, i.p.v. onafhankelijk van elkaar door te rammen.
+var _fdBackoffUntil=0;
 function fetchMeetbonIndexPage(since,startPage,merged,attempt){
   attempt=attempt||1;
   var key=getFdKey();
   var url=FD_PROXY_BASE+'/index/meetbon?since='+encodeURIComponent(since)+'&startPage='+startPage+'&maxPages=40';
-  return fetch(url,{headers:{Authorization:'Bearer '+key}})
+  var wait=Math.max(0,_fdBackoffUntil-Date.now());
+  return new Promise(function(res){setTimeout(res,wait);}).then(function(){
+    return fetch(url,{headers:{Authorization:'Bearer '+key}});
+  })
     .then(function(r){
-      if(r.status===429)throw new Error('429');
+      if(r.status===429){
+        _fdBackoffUntil=Date.now()+Math.min(60000,5000*Math.pow(2,attempt-1));
+        throw new Error('429');
+      }
       if(!r.ok)throw new Error('HTTP '+r.status+' bij opbouwen ticket-index');
       return r.json();
     })
@@ -1502,7 +1514,6 @@ function fmtErrorBreakdown(){
     .map(function(e){return e[1]+'x '+e[0];});
   return ' ('+_bulkFetchState.errors+' mislukt/overgeslagen'+(parts.length?': '+parts.join(', '):'')+')';
 }
-var _bulkBackoffUntil=0;
 function startBulkMeetbonFetch(){
   if(_bulkFetchState.running)return;
   if(!getFdKey())return;
@@ -1542,7 +1553,7 @@ function runBulkFetchQueue(todo){
       return;
     }
     var ticketId=todo[idx++];
-    var wait=Math.max(0,_bulkBackoffUntil-Date.now());
+    var wait=Math.max(0,_fdBackoffUntil-Date.now());
     setTimeout(function(){
       fetchMeetbonForTicket(ticketId)
         .then(function(parsed){
@@ -1562,7 +1573,7 @@ function runBulkFetchQueue(todo){
           if(!permanent){
             var n=(retryCount[ticketId]||0)+1;
             retryCount[ticketId]=n;
-            _bulkBackoffUntil=Date.now()+Math.min(60000,5000*Math.pow(2,n-1));
+            _fdBackoffUntil=Date.now()+Math.min(60000,5000*Math.pow(2,n-1));
             if(n<=MAX_RETRIES){
               todo.push(ticketId);
               return false; // nog niet definitief klaar; telt niet mee in 'done'
